@@ -3,6 +3,7 @@
 import { CryptoHasher, S3Client, gzipSync } from "bun";
 import { readdir, unlink, writeFile } from "node:fs/promises";
 import packageJson from "../package.json";
+import { RELEASE_NAMESPACE, RELEASE_PUBLIC_KEY } from "../src/release-signing";
 import { validateReleaseOAuth } from "./release-oauth";
 import {
   BRIDGE_VERSION,
@@ -27,6 +28,7 @@ import {
 const BUCKET = "naps-cli-releases";
 const DIST_DIR = "./dist";
 const VERSIONS_URL = "https://dl.naps.sh/versions.json";
+const signingKey = process.env.NAPS_CLI_SIGNING_KEY;
 const dryRun = process.argv.slice(2).includes("--dry-run");
 const unexpectedArguments = process.argv.slice(2).filter((argument) => argument !== "--dry-run");
 if (unexpectedArguments.length > 0) {
@@ -37,6 +39,12 @@ if (unexpectedArguments.length > 0) {
 const version = `v${packageJson.version}`;
 if (!VERSION_PATTERN.test(version)) {
   console.error(`Invalid package version: ${packageJson.version}`);
+  process.exit(1);
+}
+if (!signingKey) {
+  console.error(
+    "NAPS_CLI_SIGNING_KEY is required and must point to the local Ed25519 private key.",
+  );
   process.exit(1);
 }
 if (!process.env.NAPS_GSC_CLIENT_SECRET) {
@@ -68,6 +76,13 @@ const sha256OfFile = async ({ path }: { path: string }) => {
   const hasher = new CryptoHasher("sha256");
   for await (const chunk of Bun.file(path).stream()) hasher.update(chunk);
   return hasher.digest("hex");
+};
+
+const signFile = async ({ path }: { path: string }) => {
+  await run({
+    command: "ssh-keygen",
+    args: ["-Y", "sign", "-q", "-f", signingKey!, "-n", RELEASE_NAMESPACE, path],
+  });
 };
 
 const formatBytes = ({ bytes }: { bytes: number }) => {
@@ -165,6 +180,8 @@ const createTemporaryCredentials = async ({
     "install.ps1",
     "--objects",
     "versions.json",
+    "--objects",
+    "versions.json.sig",
   ];
   if (version === BRIDGE_VERSION) args.push("--prefixes", "cli/latest/");
   return parseTemporaryCredentials({
@@ -223,6 +240,16 @@ const printPlan = ({ uploads }: { uploads: UploadArtifact[] }) => {
 
 const main = async () => {
   console.log(`naps-cli release ${version}${dryRun ? " (dry run)" : ""}`);
+  const signingPublicKey = await run({
+    command: "ssh-keygen",
+    args: ["-y", "-f", signingKey!],
+    stdout: "pipe",
+  });
+  if (signingPublicKey.split(/\s+/).slice(0, 2).join(" ") !== RELEASE_PUBLIC_KEY) {
+    throw new Error(
+      "NAPS_CLI_SIGNING_KEY does not match the public key pinned in installers and updater",
+    );
+  }
   console.log("\n→ validating Google OAuth release credentials");
   await validateReleaseOAuth();
   let accountId = "";
@@ -249,7 +276,11 @@ const main = async () => {
   await run({ command: "bun", args: ["run", "scripts/build.ts"] });
   const binaries = (await readdir(DIST_DIR))
     .filter(
-      (file) => file.startsWith("naps-cli-") && !file.endsWith(".sha256") && !file.endsWith(".gz"),
+      (file) =>
+        file.startsWith("naps-cli-") &&
+        !file.endsWith(".sha256") &&
+        !file.endsWith(".gz") &&
+        !file.endsWith(".sig"),
     )
     .sort();
   if (binaries.length === 0) throw new Error("no binaries in dist/ after build");
@@ -259,7 +290,8 @@ const main = async () => {
     const localPath = `${DIST_DIR}/${binary}`;
     const hash = await sha256OfFile({ path: localPath });
     await writeFile(`${localPath}.gz`, gzipSync(await Bun.file(localPath).bytes(), { level: 6 }));
-    await writeFile(`${localPath}.sha256`, `${hash}  ${binary}\n`);
+    await writeFile(`${localPath}.sha256`, `${hash}  cli/${version}/${binary}\n`);
+    await signFile({ path: `${localPath}.sha256` });
     console.log(`  ${hash.slice(0, 12)}…  ${binary}`);
   }
 
@@ -267,6 +299,7 @@ const main = async () => {
   const manifest = nextManifest({ existing: existingManifest });
   const manifestPath = `${DIST_DIR}/.versions-${version}.json`;
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  await signFile({ path: manifestPath });
   try {
     const binaryUploads = buildBinaryUploadPlan({ version, binaries, distDir: DIST_DIR });
     const installerUploads = [
@@ -278,7 +311,14 @@ const main = async () => {
       file: manifestPath,
       contentType: "application/json",
     });
-    printPlan({ uploads: [...binaryUploads, ...installerUploads, manifestUpload] });
+    const manifestSignatureUpload = artifact({
+      key: "versions.json.sig",
+      file: `${manifestPath}.sig`,
+      contentType: "text/plain",
+    });
+    printPlan({
+      uploads: [...binaryUploads, ...installerUploads, manifestSignatureUpload, manifestUpload],
+    });
     if (dryRun) {
       console.log("\n✓ dry run complete; no credentials created and no R2 objects changed");
       return;
@@ -297,19 +337,27 @@ const main = async () => {
     await uploadPhase({
       label: "publishing versions.json last",
       client,
+      uploads: [manifestSignatureUpload],
+    });
+    await uploadPhase({
+      label: "publishing versions.json last",
+      client,
       uploads: [manifestUpload],
     });
     const seconds = (performance.now() - releaseStartedAt) / 1000;
     const bytes = totalBytes({
-      artifacts: [...binaryUploads, ...installerUploads, manifestUpload],
+      artifacts: [...binaryUploads, ...installerUploads, manifestSignatureUpload, manifestUpload],
     });
     console.log(
       `\n✓ released ${version}: ${formatBytes({ bytes })} in ${seconds.toFixed(1)}s (${formatBytes({ bytes: bytes / Math.max(seconds, 0.001) })}/s)`,
     );
-    console.log("  install: curl -fsSL https://dl.naps.sh/install.sh | sh");
+    console.log(
+      "  install: curl -fsSL https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.sh | sh",
+    );
     console.log(`  tag: git tag -a ${version} -m "<release notes>" && git push origin ${version}`);
   } finally {
     await unlink(manifestPath).catch(() => {});
+    await unlink(`${manifestPath}.sig`).catch(() => {});
   }
 };
 

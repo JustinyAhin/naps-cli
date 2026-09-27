@@ -134,6 +134,11 @@ const buildBinaryUploadPlan = ({
         file: `${file}.sha256`,
         contentType: "text/plain",
       }),
+      artifact({
+        key: `cli/${version}/${binary}.sha256.sig`,
+        file: `${file}.sha256.sig`,
+        contentType: "text/plain",
+      }),
     );
     if (bridgeRelease) {
       uploads.push(

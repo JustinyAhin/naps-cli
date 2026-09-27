@@ -3,6 +3,7 @@ import { access, chmod, realpath, rename, rm, writeFile } from "node:fs/promises
 import { constants } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { RELEASE_PUBLIC_KEY, verifyReleaseSignature } from "./release-signing";
 
 type VersionsManifest = {
   latest: string;
@@ -21,6 +22,7 @@ type UpdateOptions = {
   platform: NodeJS.Platform;
   architecture: string;
   fetch?: typeof fetch;
+  signingPublicKey?: string;
   onProgress?: (message: string) => void;
 };
 
@@ -161,12 +163,14 @@ const downloadBinary = async ({
   binaryName,
   fetcher,
   signal,
+  signingPublicKey = RELEASE_PUBLIC_KEY,
 }: {
   baseUrl: string;
   version: string;
   binaryName: string;
   fetcher: typeof fetch;
   signal: AbortSignal;
+  signingPublicKey?: string;
 }) => {
   const binaryUrl = `${baseUrl}/cli/${version}/${binaryName}`;
   const checksumResponse = await fetchRequired({
@@ -174,7 +178,34 @@ const downloadBinary = async ({
     fetcher,
     signal,
   });
-  const expected = (await checksumResponse.text()).trim().split(/\s+/)[0]?.toLowerCase();
+  const checksum = await checksumResponse.text();
+  const checksumSignature = await fetchRequired({
+    url: `${binaryUrl}.sha256.sig`,
+    fetcher,
+    signal,
+  });
+  if (
+    !(await verifyReleaseSignature({
+      content: new TextEncoder().encode(checksum),
+      signature: await checksumSignature.text(),
+      publicKey: signingPublicKey,
+    }))
+  ) {
+    throw new UpdateError({
+      code: "UPDATE_VERIFICATION_FAILED",
+      message: "The update checksum signature is invalid.",
+      hint: "Try again later. Do not install the downloaded update manually.",
+    });
+  }
+  const checksumParts = checksum.trim().split(/\s+/);
+  const expected = checksumParts[0]?.toLowerCase();
+  if (checksumParts.length !== 2 || checksumParts[1] !== `cli/${version}/${binaryName}`) {
+    throw new UpdateError({
+      code: "UPDATE_VERIFICATION_FAILED",
+      message: "The signed update checksum does not match this release.",
+      hint: "Try again later. Do not install the downloaded update manually.",
+    });
+  }
   if (!expected || !/^[0-9a-f]{64}$/.test(expected)) {
     throw new UpdateError({
       code: "UPDATE_VERIFICATION_FAILED",
@@ -245,6 +276,7 @@ const updateCli = async ({
   platform,
   architecture,
   fetch: injectedFetch,
+  signingPublicKey = RELEASE_PUBLIC_KEY,
   onProgress,
 }: UpdateOptions): Promise<UpdateResult> => {
   const fetcher = injectedFetch ?? fetch;
@@ -256,9 +288,28 @@ const updateCli = async ({
     fetcher,
     signal,
   });
+  const manifestText = await manifestResponse.text();
+  const manifestSignatureResponse = await fetchRequired({
+    url: `${baseUrl}/versions.json.sig`,
+    fetcher,
+    signal,
+  });
+  if (
+    !(await verifyReleaseSignature({
+      content: new TextEncoder().encode(manifestText),
+      signature: await manifestSignatureResponse.text(),
+      publicKey: signingPublicKey,
+    }))
+  ) {
+    throw new UpdateError({
+      code: "UPDATE_VERIFICATION_FAILED",
+      message: "The update manifest signature is invalid.",
+      hint: "Try again later.",
+    });
+  }
   let manifestValue: unknown;
   try {
-    manifestValue = await manifestResponse.json();
+    manifestValue = JSON.parse(manifestText);
   } catch {
     throw new UpdateError({
       code: "UPDATE_MANIFEST_INVALID",
@@ -275,7 +326,8 @@ const updateCli = async ({
     return {
       status: "windows",
       latestVersion: manifest.latest,
-      installCommand: `iwr -useb ${baseUrl}/install.ps1 | iex`,
+      installCommand:
+        "iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex",
     };
   }
 
@@ -304,6 +356,7 @@ const updateCli = async ({
     binaryName,
     fetcher,
     signal,
+    signingPublicKey,
   });
   onProgress?.("Installing update...");
   try {

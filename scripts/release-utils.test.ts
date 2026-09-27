@@ -10,11 +10,12 @@ const fixture = async () => {
   await writeFile(join(directory, "naps-cli-test"), "raw");
   await writeFile(join(directory, "naps-cli-test.gz"), "gz");
   await writeFile(join(directory, "naps-cli-test.sha256"), "hash");
+  await writeFile(join(directory, "naps-cli-test.sha256.sig"), "signature");
   return directory;
 };
 
 describe("release upload plan", () => {
-  test("later releases upload only immutable gzip and checksum files", async () => {
+  test("later releases upload immutable gzip, checksum, and signature files", async () => {
     const distDir = await fixture();
     const plan = buildBinaryUploadPlan({
       version: "v0.4.1",
@@ -24,6 +25,7 @@ describe("release upload plan", () => {
     expect(plan.map(({ key }) => key)).toEqual([
       "cli/v0.4.1/naps-cli-test.gz",
       "cli/v0.4.1/naps-cli-test.sha256",
+      "cli/v0.4.1/naps-cli-test.sha256.sig",
     ]);
   });
 });

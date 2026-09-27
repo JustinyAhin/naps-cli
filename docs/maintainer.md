@@ -145,10 +145,10 @@ Binaries are hosted on a private R2 bucket fronted by the `dl.naps.sh` custom do
 
 ```bash
 # macOS / Linux
-curl -fsSL https://dl.naps.sh/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.sh | sh
 
 # Windows (PowerShell)
-iwr -useb https://dl.naps.sh/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex
 ```
 
 Both install scripts respect:
@@ -157,8 +157,12 @@ Both install scripts respect:
 - `NAPS_CLI_INSTALL_DIR` — override install location
 - `NAPS_CLI_BASE` — override the download origin (default: `https://dl.naps.sh`)
 
-Installers resolve `latest` through `versions.json`, prefer gzip-compressed artifacts, verify
-the decompressed binary's SHA-256, and fall back to raw artifacts for older pinned releases.
+Installers resolve `latest` through a signed `versions.json`, verify each signed checksum with
+OpenSSH `ssh-keygen`, prefer gzip-compressed artifacts, and verify the decompressed binary's
+SHA-256. They fall back to raw artifacts when available. Releases published before signatures
+were introduced need signatures backfilled before the new installers can install them.
+The installer scripts are fetched from GitHub, separate from the R2 artifact host. Existing
+`dl.naps.sh/install.*` links remain for compatibility but should not be recommended.
 Installed macOS/Linux binaries can update in place:
 
 ```bash
@@ -184,6 +188,7 @@ While on `0.x`, breaking changes may ride a `MINOR` bump (semver allows this). A
 2. On `main` and up to date with `origin/main`.
 3. Bump `package.json`; it is the sole release and runtime version source.
 4. Export `NAPS_GSC_CLIENT_SECRET` for the bundled Google Desktop OAuth client. Keep a working local Search Console connection, or set `NAPS_GSC_REFRESH_TOKEN` for that client in CI. If setting `NAPS_GSC_CLIENT_ID`, it must match `BUILT_IN_GOOGLE_CLIENT_ID`.
+5. Export `NAPS_CLI_SIGNING_KEY` as the path to the local Ed25519 private key. The public key must match `src/release-signing.ts` and both installers. Keep the private key outside the repository, back it up securely, and never put it in R2 or CI secrets.
 
 Both release and `--dry-run` first validate these credentials with a live Google token refresh (15-second timeout), before repository checks, tests, builds, or uploads. Cached access tokens cannot bypass validation. Validation does not save tokens or embed the refresh token. Invalid credentials, an expired/revoked refresh token, or a network failure stop the release. For `invalid_client`, correct the client secret; for an expired/revoked refresh token, run `naps-cli search-console connect` with the correct secret or replace the CI refresh token. Never paste credentials into logs or commit them.
 
@@ -200,7 +205,8 @@ The tag is the canonical anchor for "what's in this release." The artifacts live
 
 **Rollback** — older versions stay pinned at `cli/v0.X.Y/`, so users with
 `NAPS_CLI_VERSION=v0.X.Y` are unaffected by a bad release. Set `versions.json.latest` to the
-previous good version. New installers and `naps-cli update` follow that field; versioned objects
+previous good version and sign the changed manifest with `NAPS_CLI_SIGNING_KEY` before uploading
+both `versions.json.sig` and `versions.json`. New installers and `naps-cli update` follow that field; versioned objects
 remain immutable. The legacy `cli/latest/` mirror is frozen after the v0.4.0 bridge release.
 
 ### Release flow (mechanics)
@@ -216,11 +222,11 @@ bun run release --dry-run
 
 1. Verifies a clean, synchronized `main`, `cf >=0.6.0` auth/context, typecheck, and tests
 2. Cross-compiles all 5 targets
-3. Writes each raw binary, `<binary>.gz`, and a SHA-256 of the raw binary
+3. Writes each raw binary, `<binary>.gz`, a SHA-256 of the raw binary, and an Ed25519 signature of each checksum
 4. Creates one-hour credentials scoped to this release's R2 paths
 5. Streams three files concurrently with four 8 MiB multipart uploads per file and three retries
 6. Uploads immutable gzip/checksum artifacts and install scripts
-7. Publishes `versions.json` last so incomplete releases never become current
+7. Publishes a signature for `versions.json`, then `versions.json` last so incomplete releases never become current
 
 v0.4.0 is the compatibility bridge: it also uploads immutable raw binaries and refreshes only the
 raw/checksum `cli/latest/` objects. v0.4.1 and later upload only immutable gzip/checksum pairs,

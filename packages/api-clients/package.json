@@ -17,6 +17,6 @@
     "gen": "openapi-ts -f openapi-ts.reddit-api.config.ts && openapi-ts -f openapi-ts.seo-api.config.ts"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "^0.95.0"
+    "@hey-api/openapi-ts": "^0.97.3"
   }
 }

@@ -2,7 +2,7 @@
 # naps-cli installer
 #
 # Usage:
-#   curl -fsSL https://dl.naps.sh/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.sh | sh
 #
 # Environment overrides:
 #   NAPS_CLI_VERSION       version to install (default: latest)
@@ -14,9 +14,29 @@ set -e
 BASE="${NAPS_CLI_BASE:-https://dl.naps.sh}"
 VERSION="${NAPS_CLI_VERSION:-latest}"
 INSTALL_DIR="${NAPS_CLI_INSTALL_DIR:-$HOME/.local/bin}"
+PUBLIC_KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKvcoC1ojFcGh+fzVtMltG3VlFWikCW4POQin+jvuMCu'
+
+if ! command -v ssh-keygen >/dev/null 2>&1; then
+  echo "naps-cli: ssh-keygen is required to verify release signatures" >&2
+  exit 1
+fi
+
+tmp=$(mktemp -d 2>/dev/null || mktemp -d -t naps-cli)
+trap 'rm -rf "$tmp"' EXIT
+printf 'naps-cli %s\n' "$PUBLIC_KEY" > "$tmp/allowed_signers"
+
+verify_signature() {
+  if ! ssh-keygen -Y verify -f "$tmp/allowed_signers" -I naps-cli -n naps-cli-release -s "$2" < "$1" >/dev/null 2>&1; then
+    echo "naps-cli: release signature verification failed" >&2
+    exit 1
+  fi
+}
 
 if [ "$VERSION" = "latest" ]; then
-  VERSION=$(curl -fsSL "$BASE/versions.json" | sed -n 's/.*"latest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+  curl -fsSL "$BASE/versions.json" -o "$tmp/versions.json"
+  curl -fsSL "$BASE/versions.json.sig" -o "$tmp/versions.json.sig"
+  verify_signature "$tmp/versions.json" "$tmp/versions.json.sig"
+  VERSION=$(sed -n 's/.*"latest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$tmp/versions.json" | head -n 1)
   if [ -z "$VERSION" ]; then
     echo "naps-cli: could not resolve the latest version" >&2
     exit 1
@@ -47,11 +67,10 @@ binary="naps-cli-${target}"
 bin_url="${BASE}/cli/${VERSION}/${binary}"
 sha_url="${bin_url}.sha256"
 
-tmp=$(mktemp -d 2>/dev/null || mktemp -d -t naps-cli)
-trap 'rm -rf "$tmp"' EXIT
-
 echo "naps-cli: downloading ${target} (${VERSION})..."
 curl -fsSL "$sha_url" -o "$tmp/naps-cli.sha256"
+curl -fsSL "$sha_url.sig" -o "$tmp/naps-cli.sha256.sig"
+verify_signature "$tmp/naps-cli.sha256" "$tmp/naps-cli.sha256.sig"
 
 if command -v gzip >/dev/null 2>&1 && curl -fSL --progress-bar "${bin_url}.gz" -o "$tmp/naps-cli.gz"; then
   if ! gzip -dc "$tmp/naps-cli.gz" > "$tmp/naps-cli"; then
@@ -65,6 +84,15 @@ fi
 
 echo "naps-cli: verifying checksum..."
 expected=$(awk '{print $1}' "$tmp/naps-cli.sha256")
+checksum_target=$(awk '{print $2}' "$tmp/naps-cli.sha256")
+if [ "$checksum_target" != "cli/${VERSION}/${binary}" ]; then
+  echo "naps-cli: signed checksum does not match this release" >&2
+  exit 1
+fi
+if ! echo "$expected" | grep -Eq '^[0-9a-fA-F]{64}$'; then
+  echo "naps-cli: invalid signed checksum" >&2
+  exit 1
+fi
 if command -v sha256sum >/dev/null 2>&1; then
   actual=$(sha256sum "$tmp/naps-cli" | awk '{print $1}')
 elif command -v shasum >/dev/null 2>&1; then

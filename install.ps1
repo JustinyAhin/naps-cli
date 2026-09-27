@@ -1,7 +1,7 @@
 # naps-cli installer (Windows)
 #
 # Usage:
-#   iwr -useb https://dl.naps.sh/install.ps1 | iex
+#   iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex
 #
 # Environment overrides:
 #   NAPS_CLI_VERSION       version to install (default: latest)
@@ -13,10 +13,44 @@ $ErrorActionPreference = 'Stop'
 $base = if ($env:NAPS_CLI_BASE) { $env:NAPS_CLI_BASE } else { 'https://dl.naps.sh' }
 $version = if ($env:NAPS_CLI_VERSION) { $env:NAPS_CLI_VERSION } else { 'latest' }
 $installDir = if ($env:NAPS_CLI_INSTALL_DIR) { $env:NAPS_CLI_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'naps-cli' }
+$publicKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKvcoC1ojFcGh+fzVtMltG3VlFWikCW4POQin+jvuMCu'
+if (-not (Get-Command ssh-keygen -ErrorAction SilentlyContinue)) {
+  throw 'naps-cli: OpenSSH ssh-keygen is required to verify release signatures'
+}
+
+$tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Path $tmpDir | Out-Null
+$allowedSigners = Join-Path $tmpDir 'allowed_signers'
+[System.IO.File]::WriteAllText($allowedSigners, "naps-cli $publicKey`n", [System.Text.Encoding]::ASCII)
+
+function Test-ReleaseSignature([string]$contentPath, [string]$signaturePath) {
+  $start = [System.Diagnostics.ProcessStartInfo]::new()
+  $start.FileName = 'ssh-keygen'
+  $start.Arguments = "-Y verify -f `"$allowedSigners`" -I naps-cli -n naps-cli-release -s `"$signaturePath`""
+  $start.UseShellExecute = $false
+  $start.RedirectStandardInput = $true
+  $start.RedirectStandardOutput = $true
+  $start.RedirectStandardError = $true
+  $process = [System.Diagnostics.Process]::Start($start)
+  try {
+    $bytes = [System.IO.File]::ReadAllBytes($contentPath)
+    $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+    $process.StandardInput.Close()
+    $process.WaitForExit()
+    if ($process.ExitCode -eq 0) { return }
+  } finally {
+    $process.Dispose()
+  }
+  throw 'naps-cli: release signature verification failed'
+}
 
 if ($version -eq 'latest') {
-  $manifest = Invoke-RestMethod -Uri "$base/versions.json" -UseBasicParsing
-  $version = $manifest.latest
+  $manifestPath = Join-Path $tmpDir 'versions.json'
+  $manifestSignaturePath = Join-Path $tmpDir 'versions.json.sig'
+  Invoke-WebRequest -Uri "$base/versions.json" -OutFile $manifestPath -UseBasicParsing
+  Invoke-WebRequest -Uri "$base/versions.json.sig" -OutFile $manifestSignaturePath -UseBasicParsing
+  Test-ReleaseSignature $manifestPath $manifestSignaturePath
+  $version = (Get-Content $manifestPath -Raw | ConvertFrom-Json).latest
 }
 if ($version -notmatch '^v\d+\.\d+\.\d+$') {
   throw "naps-cli: invalid version: $version"
@@ -36,6 +70,9 @@ $tmpSha = New-TemporaryFile
 $tmpGz = New-TemporaryFile
 try {
   Invoke-WebRequest -Uri $shaUrl -OutFile $tmpSha -UseBasicParsing
+  $shaSignature = Join-Path $tmpDir 'checksum.sig'
+  Invoke-WebRequest -Uri "$shaUrl.sig" -OutFile $shaSignature -UseBasicParsing
+  Test-ReleaseSignature $tmpSha $shaSignature
 
   try {
     Invoke-WebRequest -Uri "$binUrl.gz" -OutFile $tmpGz -UseBasicParsing
@@ -61,7 +98,12 @@ try {
   }
 
   Write-Host "naps-cli: verifying checksum..."
-  $expected = ((Get-Content $tmpSha -Raw).Trim() -split '\s+')[0].ToLower()
+  $checksumParts = (Get-Content $tmpSha -Raw).Trim() -split '\s+'
+  if ($checksumParts.Count -ne 2 -or $checksumParts[1] -ne "cli/$version/$binary") {
+    throw 'naps-cli: signed checksum does not match this release'
+  }
+  $expected = $checksumParts[0].ToLower()
+  if ($expected -notmatch '^[0-9a-f]{64}$') { throw 'naps-cli: invalid signed checksum' }
   $actual = (Get-FileHash $tmpBin -Algorithm SHA256).Hash.ToLower()
   if ($expected -ne $actual) {
     throw "naps-cli: checksum mismatch (expected=$expected actual=$actual)"
@@ -75,6 +117,7 @@ try {
   if (Test-Path $tmpBin) { Remove-Item $tmpBin -Force -ErrorAction SilentlyContinue }
   if (Test-Path $tmpSha) { Remove-Item $tmpSha -Force -ErrorAction SilentlyContinue }
   if (Test-Path $tmpGz) { Remove-Item $tmpGz -Force -ErrorAction SilentlyContinue }
+  Remove-Item $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host ""

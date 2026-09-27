@@ -2,7 +2,7 @@ import { CliError, cliError } from "./errors";
 
 type ApiErrorInput = {
   error: unknown;
-  response: Response;
+  response?: Response;
 };
 
 type SafeIssue = {
@@ -67,6 +67,7 @@ const requestFailure = ({
 };
 
 const redditApiError = ({ error, response }: ApiErrorInput) => {
+  if (!response) return requestFailure({ error, service: "the Reddit service", code: "REDDIT" });
   const status = response.status;
   if (status === 403 && isRecord(error) && error.error === "CLI_SERVICE_DISABLED") {
     return cliError({
@@ -122,6 +123,7 @@ const redditApiError = ({ error, response }: ApiErrorInput) => {
 };
 
 const seoApiError = ({ error, response }: ApiErrorInput) => {
+  if (!response) return requestFailure({ error, service: "the SEO API", code: "SEO" });
   const status = response.status;
   const value = isRecord(error) && typeof error.error === "string" ? error.error : undefined;
   const issues = safeIssues({ error });
