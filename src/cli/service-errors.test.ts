@@ -2,6 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { redditApiError, requestFailure } from "./service-errors";
 
 describe("CLI service errors", () => {
+  test("explains when hosted Reddit is unavailable for an account", () => {
+    const error = redditApiError({
+      response: new Response(null, { status: 403 }),
+      error: { error: "CLI_SERVICE_DISABLED" },
+    });
+    expect(error.code).toBe("REDDIT_NOT_ENABLED");
+  });
+
   test("keeps only safe Reddit validation details", () => {
     const error = redditApiError({
       response: new Response(null, { status: 422 }),

@@ -44,15 +44,24 @@ const seoApiClientHeaders = {
 let seoApiClient: ReturnType<typeof createSeoApiSdkClient> | undefined;
 let redditApiClient: ReturnType<typeof createRedditApiSdkClient> | undefined;
 
+const missingNapsApiKey = () =>
+  cliError({
+    code: "MISSING_NAPS_API_KEY",
+    message: "A Naps API key is required for Reddit and SEO commands.",
+    hint: "Request beta access and create a key at https://naps.sh/cli, then set NAPS_CLI_API_KEY.",
+  });
+
 const getSeoApiClient = () => {
+  const publicKey = optionalAuthToken({ envName: "NAPS_CLI_API_KEY" });
+  const internalKey =
+    optionalAuthToken({ envName: "NAPS_CLI_SEO_API_TOKEN" }) ??
+    optionalAuthToken({ envName: "SEO_API_TOKEN" });
+  const key = publicKey ?? internalKey;
+  if (!key) throw missingNapsApiKey();
   seoApiClient ??= createSeoApiSdkClient(
     createSeoApiSdkConfig({
-      baseUrl: "https://seo-api.naps.sh/api",
-      auth: requiredAuthToken({
-        code: "MISSING_SEO_API_TOKEN",
-        envNames: ["NAPS_CLI_SEO_API_TOKEN", "SEO_API_TOKEN"],
-        serviceName: "SEO API",
-      }),
+      baseUrl: publicKey ? "https://naps.sh/api/cli/seo" : "https://seo-api.naps.sh/api",
+      auth: key,
       headers: seoApiClientHeaders,
     }),
   );
@@ -60,10 +69,14 @@ const getSeoApiClient = () => {
 };
 
 const getRedditApiClient = () => {
+  const publicKey = optionalAuthToken({ envName: "NAPS_CLI_API_KEY" });
+  const internalKey = optionalAuthToken({ envName: "NAPS_CLI_REDDIT_API_TOKEN" });
+  const key = publicKey ?? internalKey;
+  if (!key) throw missingNapsApiKey();
   redditApiClient ??= createRedditApiSdkClient(
     createRedditApiSdkConfig({
-      baseUrl: "https://reddit-api.naps.sh",
-      auth: optionalAuthToken({ envName: "NAPS_CLI_REDDIT_API_TOKEN" }),
+      baseUrl: publicKey ? "https://naps.sh/api/cli" : "https://reddit-api.naps.sh",
+      auth: key,
     }),
   );
   return redditApiClient;

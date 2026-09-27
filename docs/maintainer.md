@@ -2,6 +2,16 @@
 
 Distributable CLI (`naps-cli`) wrapping the Reddit API, Twitter/X search providers, the internal SEO API (keyword research), and Google Search Console.
 
+For user setup, see [Getting started](getting-started.md), [Agents](agents.md), and [Data and credentials](data-and-credentials.md).
+
+## Contents
+
+- [Architecture](#architecture)
+- [Environment variables](#environment-variables)
+- [Google Search Console](#google-search-console)
+- [Commands and conventions](#adding-a-subcommand)
+- [Distribution and releases](#distribution-r2--dlnapssh)
+
 ## Tech Stack
 
 - **Runtime/Package Manager**: Bun (not npm/pnpm)
@@ -38,10 +48,12 @@ src/commands/            → command implementations, lazy-loaded by the route t
 
 This CLI is meant to be distributed to end users. Do **not** read keys from local `.env` files or hard-coded paths.
 
-The SEO API requires bearer auth. Reddit API admin auth is optional and only used to bypass its rate limits:
+Public users authenticate SEO calls through the naps.sh gateway with one account key. The gateway, invite-only key issuance, and per-user daily quotas live in the `napsdotsh` web app. Hosted Reddit has a default quota of zero until commercial use is approved; the admin can enable it per account later. Release the web app migration and gateway before distributing a CLI build that expects `NAPS_CLI_API_KEY`.
 
-- `NAPS_CLI_SEO_API_TOKEN` or `SEO_API_TOKEN` — SEO API token required for `keywords*` and `locations`
-- `NAPS_CLI_REDDIT_API_TOKEN` — Reddit API token (optional)
+- `NAPS_CLI_API_KEY` — public beta key for SEO and, when enabled, Reddit; created at `https://naps.sh/cli`; preferred over the internal token variables below
+- `NAPS_CLI_SEO_API_TOKEN` or `SEO_API_TOKEN` — legacy direct SEO service token for private workflows only
+- `NAPS_CLI_REDDIT_API_TOKEN` — legacy direct Reddit service token for private workflows only
+
 - `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` — TwitterAPI.io key required for `twitter-search --provider twitterapi`
 - `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN` — X API bearer token required for `twitter-search --provider official`
 - `NAPS_GSC_REFRESH_TOKEN` — Google Search Console refresh token for CI/headless use (optional; takes precedence over local credentials)
@@ -49,7 +61,7 @@ The SEO API requires bearer auth. Reddit API admin auth is optional and only use
 - `NAPS_GSC_CLIENT_SECRET` — Google Desktop OAuth client secret override for development and required build-time input for releases
 - `NAPS_CLI_BASE` — download origin override for installers and `naps-cli update`
 
-`getSeoApiClient()` throws a clear CLI error if both SEO token env vars are missing. `getRedditApiClient()` attaches `Authorization: Bearer ...` only when the optional key is set.
+`getSeoApiClient()` and `getRedditApiClient()` require either the public Naps key or the corresponding private service token. Do not give shared internal service tokens to public CLI users. When `NAPS_CLI_API_KEY` is set, both clients use the naps.sh gateway; otherwise they use their direct service endpoint for the existing private workflow.
 
 ## Google Search Console
 

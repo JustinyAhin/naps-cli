@@ -1,4 +1,9 @@
-import { text_en, type ApplicationText } from "@stricli/core";
+import {
+  ArgumentScannerError,
+  formatMessageForArgumentScannerError,
+  text_en,
+  type ApplicationText,
+} from "@stricli/core";
 
 type CliErrorDetails = Record<string, unknown> | Array<unknown>;
 
@@ -45,10 +50,32 @@ const normalizeError = ({ error }: { error: unknown }) =>
   error instanceof CliError ? error : unexpectedError();
 
 const formatException = (error: unknown) =>
-  JSON.stringify(errorEnvelope({ error: normalizeError({ error }) }), null, 2);
+  JSON.stringify(errorEnvelope({ error: normalizeError({ error }) }));
 
 const cliText: ApplicationText = {
   ...text_en,
+  noCommandRegisteredForInput: ({ input, corrections }) =>
+    formatException(
+      cliError({
+        code: "INVALID_COMMAND",
+        message: `Unknown command: ${input}.`,
+        ...(corrections.length > 0 ? { hint: `Did you mean ${corrections.join(" or ")}?` } : {}),
+      }),
+    ),
+  exceptionWhileParsingArguments: (error) =>
+    formatException(
+      cliError({
+        code: "INVALID_ARGUMENTS",
+        message:
+          error instanceof ArgumentScannerError
+            ? formatMessageForArgumentScannerError(error, {})
+            : "Unable to parse command arguments.",
+      }),
+    ),
+  exceptionWhileLoadingCommandFunction: formatException,
+  exceptionWhileLoadingCommandContext: formatException,
+  exceptionWhileRunningIntegrationHook: ({ exception }) => formatException(exception),
+  exceptionWhileRunningIntegrationFlag: ({ exception }) => formatException(exception),
   exceptionWhileRunningCommand: formatException,
   commandErrorResult: formatException,
 };

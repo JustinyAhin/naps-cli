@@ -260,7 +260,7 @@ const searchTwitterApi = async ({
   const tweets: NormalizedTweet[] = [];
   let cursor = "";
   let pagesFetched = 0;
-  const maxPages = Math.ceil(limit / 20) + 10;
+  const maxPages = 5;
 
   while (tweets.length < limit && pagesFetched < maxPages) {
     const url = new URL("https://api.twitterapi.io/twitter/tweet/advanced_search");
@@ -300,9 +300,10 @@ const searchOfficial = async ({
 }: SearchInput): Promise<NormalizedTweet[]> => {
   const tweets: NormalizedTweet[] = [];
   let nextToken: string | undefined;
+  let pagesFetched = 0;
   const maxResults = archive === "all" ? 500 : 100;
 
-  while (tweets.length < limit) {
+  while (tweets.length < limit && pagesFetched < 5) {
     const remaining = limit - tweets.length;
     const pageSize = Math.min(maxResults, Math.max(10, remaining));
     const url = new URL(`https://api.x.com/2/tweets/search/${archive}`);
@@ -347,6 +348,7 @@ const searchOfficial = async ({
       headers: { Authorization: `Bearer ${getXBearerToken()}` },
       provider: "official",
     });
+    pagesFetched += 1;
     const usersById = new Map((data.includes?.users ?? []).map((user) => [user.id ?? "", user]));
     const pageTweets = (data.data ?? []).map((tweet) =>
       normalizeOfficialTweet({ tweet, usersById }),

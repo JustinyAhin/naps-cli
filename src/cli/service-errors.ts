@@ -13,6 +13,9 @@ type SafeIssue = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isCliQuotaExceeded = (error: unknown) =>
+  isRecord(error) && error.error === "CLI_QUOTA_EXCEEDED";
+
 const safeIssues = ({ error }: { error: unknown }): SafeIssue[] => {
   if (!isRecord(error)) return [];
   const candidates = Array.isArray(error.issues)
@@ -65,18 +68,32 @@ const requestFailure = ({
 
 const redditApiError = ({ error, response }: ApiErrorInput) => {
   const status = response.status;
+  if (status === 403 && isRecord(error) && error.error === "CLI_SERVICE_DISABLED") {
+    return cliError({
+      code: "REDDIT_NOT_ENABLED",
+      message: "Hosted Reddit access is not enabled for this account.",
+      hint: "See https://naps.sh/cli for beta availability.",
+    });
+  }
   if (status === 401 || status === 403) {
     return cliError({
       code: "REDDIT_AUTH_FAILED",
       message: "Reddit authentication failed.",
-      hint: "Check NAPS_CLI_REDDIT_API_TOKEN or unset it and try again.",
+      hint: "Check NAPS_CLI_API_KEY or create a new key at https://naps.sh/cli.",
     });
   }
   if (status === 429) {
+    if (isCliQuotaExceeded(error)) {
+      return cliError({
+        code: "NAPS_QUOTA_EXCEEDED",
+        message: "Your daily Reddit allowance is used up.",
+        hint: "Check usage at https://naps.sh/cli. Allowances reset at 00:00 UTC.",
+      });
+    }
     return cliError({
       code: "REDDIT_RATE_LIMITED",
       message: "Reddit's request limit was reached.",
-      hint: "Try again later, or set NAPS_CLI_REDDIT_API_TOKEN if you have one.",
+      hint: "Try again later.",
     });
   }
   if (status === 422) {
@@ -112,10 +129,17 @@ const seoApiError = ({ error, response }: ApiErrorInput) => {
     return cliError({
       code: "SEO_AUTH_FAILED",
       message: "SEO API authentication failed.",
-      hint: "Check NAPS_CLI_SEO_API_TOKEN or SEO_API_TOKEN and try again.",
+      hint: "Check NAPS_CLI_API_KEY or create a new key at https://naps.sh/cli.",
     });
   }
   if (status === 429) {
+    if (isCliQuotaExceeded(error)) {
+      return cliError({
+        code: "NAPS_QUOTA_EXCEEDED",
+        message: "Your daily SEO allowance is used up.",
+        hint: "Check usage at https://naps.sh/cli. Allowances reset at 00:00 UTC.",
+      });
+    }
     return cliError({
       code: "SEO_RATE_LIMITED",
       message: "The SEO API request limit was reached.",

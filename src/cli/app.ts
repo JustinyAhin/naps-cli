@@ -11,7 +11,7 @@ import {
 import packageJson from "../../package.json";
 import type { CliContext } from "./context";
 import { cliText } from "./errors";
-import { boundedIntegerParser, positiveIntegerParser, stringParser } from "./parsers";
+import { boundedIntegerParser, stringParser } from "./parsers";
 
 const locationBrief =
   'Location/country name (e.g. "Germany"). Run `naps-cli locations` to list valid values.';
@@ -51,9 +51,9 @@ const redditSearch = buildCommand({
       },
       limit: {
         kind: "parsed",
-        parse: positiveIntegerParser,
+        parse: boundedIntegerParser({ minimum: 1, maximum: 100 }),
         default: "20",
-        brief: "Max results to fetch",
+        brief: "Max results to fetch (1 to 100)",
       },
     },
     positional: {
@@ -88,9 +88,9 @@ const redditSubreddits = buildCommand({
     flags: {
       limit: {
         kind: "parsed",
-        parse: positiveIntegerParser,
+        parse: boundedIntegerParser({ minimum: 1, maximum: 25 }),
         default: "10",
-        brief: "Max subreddits to return",
+        brief: "Max subreddits to return (1 to 25)",
       },
     },
     positional: {
@@ -115,9 +115,9 @@ const twitterSearch = buildCommand({
       },
       limit: {
         kind: "parsed",
-        parse: positiveIntegerParser,
+        parse: boundedIntegerParser({ minimum: 1, maximum: 100 }),
         default: "20",
-        brief: "Max tweets to fetch",
+        brief: "Max tweets to fetch (1 to 100)",
       },
       sort: {
         kind: "enum",

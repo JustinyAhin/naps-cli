@@ -54,6 +54,17 @@ afterEach(() => {
 });
 
 describe("CLI application", () => {
+  test("rejects excessive Twitter requests with a structured argument error", async () => {
+    const context = createTestContext();
+    await run(app, ["twitter-search", "query", "--limit", "101"], context.context);
+
+    expect(context.context.process.exitCode).not.toBe(0);
+    expect(context.stdout()).toBe("");
+    expect(JSON.parse(context.stderr())).toMatchObject({
+      error: { code: "INVALID_ARGUMENTS" },
+    });
+  });
+
   test("formats command runtime errors as structured JSON", async () => {
     const invalidUrl = createTestContext();
     await run(app, ["reddit-post", "not-a-url"], invalidUrl.context);
