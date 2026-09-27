@@ -48,7 +48,7 @@ src/commands/            → command implementations, lazy-loaded by the route t
 
 This CLI is meant to be distributed to end users. Do **not** read keys from local `.env` files or hard-coded paths.
 
-Public users authenticate SEO calls through the naps.sh gateway with one account key. The gateway, invite-only key issuance, and per-user daily quotas live in the `napsdotsh` web app. Hosted Reddit has a default quota of zero until commercial use is approved; the admin can enable it per account later. Release the web app migration and gateway before distributing a CLI build that expects `NAPS_CLI_API_KEY`.
+Public users authenticate SEO calls through the naps.sh gateway with one account key. The gateway, self-serve key issuance, and per-user daily quotas live in the `napsdotsh` web app. Hosted Reddit has a default quota of zero until commercial use is approved; the admin can enable it per account later. Release the web app migration and gateway before distributing a CLI build that expects `NAPS_CLI_API_KEY`.
 
 - `NAPS_CLI_API_KEY` — public beta key for SEO and, when enabled, Reddit; created at `https://naps.sh/cli`; preferred over the internal token variables below
 - `NAPS_CLI_SEO_API_TOKEN` or `SEO_API_TOKEN` — legacy direct SEO service token for private workflows only

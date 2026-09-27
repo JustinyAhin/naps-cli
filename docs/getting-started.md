@@ -6,7 +6,7 @@
 
 | Commands                             | Credential                                          | Where to get it                                                   |
 | ------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------------- |
-| `keywords*`, `locations`             | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Beta access is by invitation. |
+| `keywords*`, `locations`             | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.     |
 | `reddit-*`                           | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account.    |
 | `twitter-search` (default provider)  | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                       |
 | `twitter-search --provider official` | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                         |
@@ -25,11 +25,11 @@ naps-cli keywords-bulk 'invoicing software' 'freelance invoices'
 naps-cli locations
 ```
 
-Naps-hosted requests have separate daily allowances, shown at [naps.sh/cli](https://naps.sh/cli). Each SEO call uses one SEO unit, except `keywords-bulk`, which uses one unit per nonempty keyword. Allowances reset at 00:00 UTC. Failed upstream requests can still use an allowance because it is reserved before the provider call.
+Naps-hosted requests have separate daily allowances, shown at [naps.sh/cli](https://naps.sh/cli). New accounts receive five SEO units per day. Each keyword or SERP call uses one SEO unit, `keywords-bulk` uses one per nonempty keyword, and `locations` uses none. Allowances reset at 00:00 UTC. Failed upstream requests can still use an allowance because it is reserved before the provider call.
 
 ## Reddit, when enabled
 
-Hosted Reddit access is disabled for new beta invitations until its commercial use is approved. If your account has a Reddit allowance, each call uses one Reddit request:
+Hosted Reddit access is disabled for new accounts until its commercial use is approved. If your account has a Reddit allowance, each call uses one Reddit request:
 
 ```sh
 naps-cli reddit-search 'customer complaints about invoicing' --limit 10

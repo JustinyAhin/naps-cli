@@ -20,14 +20,14 @@ Installers verify Ed25519 signatures on release metadata and SHA-256 checksums. 
 
 ## Quick start
 
-SEO commands need a Naps API key. During the beta, [request access](https://naps.sh/cli), sign in, create a key, and set it in your environment:
+SEO commands need a Naps API key. [Sign in at naps.sh/cli](https://naps.sh/cli) to receive five free SEO units per day, create a key, and set it in your environment:
 
 ```sh
 export NAPS_CLI_API_KEY='your-key'
 naps-cli keywords 'small business bookkeeping'
 ```
 
-Hosted Reddit access is disabled for new beta invitations until its commercial use is approved. Twitter/X commands use your own provider key. Search Console connects directly to Google on your machine. See [Getting started](docs/getting-started.md) for each setup path.
+Hosted Reddit access is disabled for new accounts until its commercial use is approved. Twitter/X commands use your own provider key. Search Console connects directly to Google on your machine. See [Getting started](docs/getting-started.md) for each setup path.
 
 ## Documentation
 
