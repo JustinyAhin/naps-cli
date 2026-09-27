@@ -351,9 +351,7 @@ const main = async () => {
     console.log(
       `\n✓ released ${version}: ${formatBytes({ bytes })} in ${seconds.toFixed(1)}s (${formatBytes({ bytes: bytes / Math.max(seconds, 0.001) })}/s)`,
     );
-    console.log(
-      "  install: curl -fsSL https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.sh | sh",
-    );
+    console.log("  install: curl -fsSL https://naps.sh/cli/install.sh | sh");
     console.log(`  tag: git tag -a ${version} -m "<release notes>" && git push origin ${version}`);
   } finally {
     await unlink(manifestPath).catch(() => {});

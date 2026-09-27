@@ -326,8 +326,7 @@ const updateCli = async ({
     return {
       status: "windows",
       latestVersion: manifest.latest,
-      installCommand:
-        "iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex",
+      installCommand: "iwr -useb https://naps.sh/cli/install.ps1 | iex",
     };
   }
 

@@ -145,10 +145,10 @@ Binaries are hosted on a private R2 bucket fronted by the `dl.naps.sh` custom do
 
 ```bash
 # macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.sh | sh
+curl -fsSL https://naps.sh/cli/install.sh | sh
 
 # Windows (PowerShell)
-iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex
+iwr -useb https://naps.sh/cli/install.ps1 | iex
 ```
 
 Both install scripts respect:
@@ -161,8 +161,9 @@ Installers resolve `latest` through a signed `versions.json`, verify each signed
 OpenSSH `ssh-keygen`, prefer gzip-compressed artifacts, and verify the decompressed binary's
 SHA-256. They fall back to raw artifacts when available. Releases published before signatures
 were introduced need signatures backfilled before the new installers can install them.
-The installer scripts are fetched from GitHub, separate from the R2 artifact host. Existing
-`dl.naps.sh/install.*` links remain for compatibility but should not be recommended.
+The installer scripts are served by the naps.sh web app, separate from the R2 artifact host.
+Keep the web app's static installer copies in sync with this repository before each release.
+Existing `dl.naps.sh/install.*` links remain for compatibility but should not be recommended.
 Installed macOS/Linux binaries can update in place:
 
 ```bash

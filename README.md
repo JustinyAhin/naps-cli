@@ -7,13 +7,13 @@ Research Reddit, search demand, Twitter/X, and your Google Search Console data f
 macOS and Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.sh | sh
+curl -fsSL https://naps.sh/cli/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex
+iwr -useb https://naps.sh/cli/install.ps1 | iex
 ```
 
 Installers verify Ed25519 signatures on release metadata and SHA-256 checksums. They require OpenSSH `ssh-keygen`. Run `naps-cli --help` for the command list and `naps-cli <command> --help` for options. Existing installations can run `naps-cli update`.

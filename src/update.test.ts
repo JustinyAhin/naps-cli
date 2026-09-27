@@ -216,8 +216,7 @@ describe("CLI updater", () => {
     expect(result).toEqual({
       status: "windows",
       latestVersion: "v0.4.0",
-      installCommand:
-        "iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex",
+      installCommand: "iwr -useb https://naps.sh/cli/install.ps1 | iex",
     });
     expect(mock.calls).toHaveLength(2);
   });

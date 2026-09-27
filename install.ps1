@@ -1,7 +1,7 @@
 # naps-cli installer (Windows)
 #
 # Usage:
-#   iwr -useb https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.ps1 | iex
+#   iwr -useb https://naps.sh/cli/install.ps1 | iex
 #
 # Environment overrides:
 #   NAPS_CLI_VERSION       version to install (default: latest)

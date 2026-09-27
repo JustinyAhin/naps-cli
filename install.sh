@@ -2,7 +2,7 @@
 # naps-cli installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/JustinyAhin/naps-cli/main/install.sh | sh
+#   curl -fsSL https://naps.sh/cli/install.sh | sh
 #
 # Environment overrides:
 #   NAPS_CLI_VERSION       version to install (default: latest)
