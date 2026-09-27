@@ -1,0 +1,24 @@
+import type { InputParser } from "@stricli/core";
+
+const stringParser: InputParser<string> = (input) => input;
+
+const positiveIntegerParser: InputParser<number> = (input) => {
+  const value = Number(input);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new SyntaxError("expected a positive integer");
+  }
+  return value;
+};
+
+const boundedIntegerParser = ({ minimum, maximum }: { minimum: number; maximum: number }) => {
+  const parser: InputParser<number> = (input) => {
+    const value = Number(input);
+    if (!Number.isInteger(value) || value < minimum || value > maximum) {
+      throw new SyntaxError(`expected an integer from ${minimum} to ${maximum}`);
+    }
+    return value;
+  };
+  return parser;
+};
+
+export { boundedIntegerParser, positiveIntegerParser, stringParser };

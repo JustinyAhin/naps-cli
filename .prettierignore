@@ -1,0 +1,5 @@
+# Generated API clients
+packages/api-clients/src/
+
+# Lockfile
+bun.lock

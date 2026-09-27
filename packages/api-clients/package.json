@@ -1,0 +1,22 @@
+{
+  "name": "api-clients",
+  "private": true,
+  "description": "Generated API clients for naps-cli",
+  "type": "module",
+  "exports": {
+    "./seo-api": "./src/seo-api/index.ts",
+    "./seo-api/client": "./src/seo-api/client/index.ts",
+    "./seo-api/sdk.gen": "./src/seo-api/sdk.gen.ts",
+    "./seo-api/types.gen": "./src/seo-api/types.gen.ts",
+    "./reddit-api": "./src/reddit-api/index.ts",
+    "./reddit-api/client": "./src/reddit-api/client/index.ts",
+    "./reddit-api/sdk.gen": "./src/reddit-api/sdk.gen.ts",
+    "./reddit-api/types.gen": "./src/reddit-api/types.gen.ts"
+  },
+  "scripts": {
+    "gen": "openapi-ts -f openapi-ts.reddit-api.config.ts && openapi-ts -f openapi-ts.seo-api.config.ts"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.95.0"
+  }
+}

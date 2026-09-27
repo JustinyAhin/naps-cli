@@ -1,0 +1,9 @@
+# Local environment (CLOUDFLARE_ACCOUNT_ID, NAPS_CLI_*_ADMIN_KEY, etc.)
+.env
+.env.local
+.env.*
+!.env.example
+node_modules/
+dist/
+*.tsbuildinfo
+*.bun-build
