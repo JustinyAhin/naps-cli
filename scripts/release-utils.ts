@@ -73,7 +73,11 @@ const parseAccountId = ({ output }: { output: string }) => {
     typeof value.accountId === "string"
       ? value.accountId
       : (value.accountId?.value ?? value.account_id);
-  if (!accountId) throw new Error("cf context has no default account; run cf context use");
+  if (!accountId) {
+    throw new Error(
+      "cf context has no default account; set CLOUDFLARE_ACCOUNT_ID or run cf context set account-id <id>",
+    );
+  }
   return accountId;
 };
 

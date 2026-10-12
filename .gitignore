@@ -3,6 +3,8 @@
 .env.local
 .env.*
 !.env.example
+!.env.schema
+.varlock*
 node_modules/
 dist/
 *.tsbuildinfo

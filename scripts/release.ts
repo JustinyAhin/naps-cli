@@ -4,6 +4,7 @@ import { CryptoHasher, S3Client, gzipSync } from "bun";
 import { readdir, unlink, writeFile } from "node:fs/promises";
 import packageJson from "../package.json";
 import { RELEASE_NAMESPACE, RELEASE_PUBLIC_KEY } from "../src/release-signing";
+import { withReleaseSigningKey } from "./release-key";
 import { validateReleaseOAuth } from "./release-oauth";
 import {
   BRIDGE_VERSION,
@@ -29,6 +30,9 @@ const BUCKET = "naps-cli-releases";
 const DIST_DIR = "./dist";
 const VERSIONS_URL = "https://dl.naps.sh/versions.json";
 const signingKey = process.env.NAPS_CLI_SIGNING_KEY;
+const signingKeyContent = process.env.NAPS_CLI_SIGNING_KEY_CONTENT;
+delete process.env.NAPS_CLI_SIGNING_KEY_CONTENT;
+delete process.env.NAPS_CLI_SIGNING_KEY;
 const dryRun = process.argv.slice(2).includes("--dry-run");
 const unexpectedArguments = process.argv.slice(2).filter((argument) => argument !== "--dry-run");
 if (unexpectedArguments.length > 0) {
@@ -39,12 +43,6 @@ if (unexpectedArguments.length > 0) {
 const version = `v${packageJson.version}`;
 if (!VERSION_PATTERN.test(version)) {
   console.error(`Invalid package version: ${packageJson.version}`);
-  process.exit(1);
-}
-if (!signingKey) {
-  console.error(
-    "NAPS_CLI_SIGNING_KEY is required and must point to the local Ed25519 private key.",
-  );
   process.exit(1);
 }
 if (!process.env.NAPS_GSC_CLIENT_SECRET) {
@@ -65,7 +63,16 @@ const run = async ({
   stdout?: "inherit" | "pipe";
   stderr?: "inherit" | "pipe";
 }) => {
-  const proc = Bun.spawn([command, ...args], { stdout, stderr });
+  const env = { ...process.env };
+  delete env.NAPS_CLI_SIGNING_KEY_CONTENT;
+  delete env.NAPS_CLI_SIGNING_KEY;
+  delete env.NAPS_GSC_REFRESH_TOKEN;
+  delete env.CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID;
+  if (command !== "cf") delete env.CLOUDFLARE_API_TOKEN;
+  if (!(command === "bun" && args.includes("scripts/build.ts"))) {
+    delete env.NAPS_GSC_CLIENT_SECRET;
+  }
+  const proc = Bun.spawn([command, ...args], { stdout, stderr, env });
   const code = await proc.exited;
   const output = stdout === "pipe" ? await new Response(proc.stdout).text() : "";
   if (code !== 0) throw new Error(`${command} command failed`);
@@ -78,10 +85,10 @@ const sha256OfFile = async ({ path }: { path: string }) => {
   return hasher.digest("hex");
 };
 
-const signFile = async ({ path }: { path: string }) => {
+const signFile = async ({ path, signingKeyPath }: { path: string; signingKeyPath: string }) => {
   await run({
     command: "ssh-keygen",
-    args: ["-Y", "sign", "-q", "-f", signingKey!, "-n", RELEASE_NAMESPACE, path],
+    args: ["-Y", "sign", "-q", "-f", signingKeyPath, "-n", RELEASE_NAMESPACE, path],
   });
 };
 
@@ -238,16 +245,16 @@ const printPlan = ({ uploads }: { uploads: UploadArtifact[] }) => {
   console.log(`  legacy mirror: ${version === BRIDGE_VERSION ? "raw + checksum" : "disabled"}`);
 };
 
-const main = async () => {
+const main = async ({ signingKeyPath }: { signingKeyPath: string }) => {
   console.log(`naps-cli release ${version}${dryRun ? " (dry run)" : ""}`);
   const signingPublicKey = await run({
     command: "ssh-keygen",
-    args: ["-y", "-f", signingKey!],
+    args: ["-y", "-f", signingKeyPath],
     stdout: "pipe",
   });
   if (signingPublicKey.split(/\s+/).slice(0, 2).join(" ") !== RELEASE_PUBLIC_KEY) {
     throw new Error(
-      "NAPS_CLI_SIGNING_KEY does not match the public key pinned in installers and updater",
+      "Release signing key does not match the public key pinned in installers and updater",
     );
   }
   console.log("\n→ validating Google OAuth release credentials");
@@ -291,7 +298,7 @@ const main = async () => {
     const hash = await sha256OfFile({ path: localPath });
     await writeFile(`${localPath}.gz`, gzipSync(await Bun.file(localPath).bytes(), { level: 6 }));
     await writeFile(`${localPath}.sha256`, `${hash}  cli/${version}/${binary}\n`);
-    await signFile({ path: `${localPath}.sha256` });
+    await signFile({ path: `${localPath}.sha256`, signingKeyPath });
     console.log(`  ${hash.slice(0, 12)}…  ${binary}`);
   }
 
@@ -299,7 +306,7 @@ const main = async () => {
   const manifest = nextManifest({ existing: existingManifest });
   const manifestPath = `${DIST_DIR}/.versions-${version}.json`;
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  await signFile({ path: manifestPath });
+  await signFile({ path: manifestPath, signingKeyPath });
   try {
     const binaryUploads = buildBinaryUploadPlan({ version, binaries, distDir: DIST_DIR });
     const installerUploads = [
@@ -360,8 +367,8 @@ const main = async () => {
 };
 
 try {
-  await main();
+  await withReleaseSigningKey({ keyPath: signingKey, keyContent: signingKeyContent, run: main });
 } catch (error) {
   console.error(`\nrelease failed: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
+  process.exitCode = 1;
 }

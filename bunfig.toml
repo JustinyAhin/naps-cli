@@ -1,0 +1,2 @@
+# Varlock supplies credentials to development and release commands.
+env = false
