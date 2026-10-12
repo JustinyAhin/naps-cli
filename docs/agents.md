@@ -4,10 +4,13 @@
 
 Agents can run `naps-cli` as an ordinary command. Give the agent the commands it may use and inject credentials through its environment or secret manager. The agent does not need an interactive browser session to use Reddit, SEO, or Twitter/X.
 
+This file is the canonical detailed agent guide. Run `naps-cli agent-guide` for concise JSON instructions and guide URLs. That command works offline without credentials and makes no research requests.
+
 For a copyable agent setup prompt and public setup instructions, see [naps.sh/cli](https://naps.sh/cli) and its [agent guide](https://naps.sh/cli/agent.md). Keep the key out of the prompt. An agent can only read environment variables supplied to its process; restart it after adding a key if needed.
 
 ```sh
 naps-cli --help
+naps-cli agent-guide
 naps-cli keywords 'invoice software for freelancers'
 ```
 

@@ -54,6 +54,29 @@ afterEach(() => {
 });
 
 describe("CLI application", () => {
+  test("agent guidance is discoverable and returns concise JSON without credentials", async () => {
+    const output = createTestContext({ env: {} });
+    await run(app, ["agent-guide"], output.context);
+
+    expect(output.context.process.exitCode).toBe(0);
+    expect(output.stderr()).toBe("");
+    const guide = JSON.parse(output.stdout());
+    expect(guide.guideUrl).toBe("https://naps.sh/cli/agent.md");
+    expect(guide.canonicalGuide).toBe("docs/agents.md");
+    expect(guide.instructions.join("\n")).toContain("error.code and error.hint");
+    expect(guide.instructions.join("\n")).toContain("operator reconciliation");
+    expect(guide.examples).toContain("naps-cli keywords 'invoice software' --refresh --metadata");
+
+    for (const args of [["--help"], ["agent-guide", "--help"]]) {
+      const help = createTestContext({ env: {} });
+      await run(app, args, help.context);
+      expect(help.context.process.exitCode).toBe(0);
+      expect(help.stderr()).toBe("");
+      expect(help.stdout()).toContain("agent-guide");
+      expect(help.stdout()).toContain("offline");
+    }
+  });
+
   test("keyword help documents value placeholders and bulk-only resume IDs", async () => {
     for (const command of ["keywords", "keywords-bulk", "keywords-serp", "keywords-website"]) {
       const output = createTestContext();

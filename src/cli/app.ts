@@ -341,8 +341,19 @@ const completion = buildRouteMap({
   docs: { brief: "Manage Bash tab completion" },
 });
 
+const agentGuide = buildCommand({
+  loader: () => import("../commands/agent-guide"),
+  parameters: {},
+  docs: {
+    brief: "Print concise agent instructions and guide URLs as JSON (offline)",
+    fullDescription:
+      "Print concise JSON guidance offline. No credentials or network access are required. See docs/agents.md for the canonical detailed guide.",
+  },
+});
+
 const root = buildRouteMap({
   routes: {
+    "agent-guide": agentGuide,
     "reddit-search": redditSearch,
     "reddit-post": redditPost,
     "reddit-subreddits": redditSubreddits,
