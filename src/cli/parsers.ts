@@ -2,6 +2,14 @@ import type { InputParser } from "@stricli/core";
 
 const stringParser: InputParser<string> = (input) => input;
 
+const budgetParser: InputParser<number> = (input) => {
+  const value = Number(input);
+  if (input.trim() === "" || !Number.isFinite(value) || value < 0) {
+    throw new SyntaxError("expected a nonnegative finite USD amount");
+  }
+  return value;
+};
+
 const positiveIntegerParser: InputParser<number> = (input) => {
   const value = Number(input);
   if (!Number.isInteger(value) || value < 1) {
@@ -21,4 +29,4 @@ const boundedIntegerParser = ({ minimum, maximum }: { minimum: number; maximum: 
   return parser;
 };
 
-export { boundedIntegerParser, positiveIntegerParser, stringParser };
+export { boundedIntegerParser, budgetParser, positiveIntegerParser, stringParser };

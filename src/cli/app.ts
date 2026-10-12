@@ -11,7 +11,7 @@ import {
 import packageJson from "../../package.json";
 import type { CliContext } from "./context";
 import { cliText } from "./errors";
-import { boundedIntegerParser, stringParser } from "./parsers";
+import { boundedIntegerParser, budgetParser, stringParser } from "./parsers";
 
 const locationBrief =
   'Location/country name (e.g. "Germany"). Run `naps-cli locations` to list valid values.';
@@ -151,6 +151,22 @@ const twitterSearch = buildCommand({
 const keywordFlags = {
   location: optionalStringFlag({ brief: locationBrief }),
   language: optionalStringFlag({ brief: languageBrief }),
+  refresh: {
+    kind: "boolean" as const,
+    optional: true as const,
+    brief: "Bypass successful research cache",
+  },
+  budget: {
+    kind: "parsed" as const,
+    parse: budgetParser,
+    optional: true as const,
+    brief: "Maximum estimated provider spend in USD (zero prevents new paid tasks)",
+  },
+  metadata: {
+    kind: "boolean" as const,
+    optional: true as const,
+    brief: "Write cost, cache, and job metadata to stderr",
+  },
 };
 
 const keywords = buildCommand({
@@ -168,7 +184,16 @@ const keywords = buildCommand({
 const keywordsBulk = buildCommand({
   loader: () => import("../commands/keywords-bulk"),
   parameters: {
-    flags: keywordFlags,
+    flags: {
+      ...keywordFlags,
+      requestId: {
+        ...optionalStringFlag({ brief: "Resumable run ID; reuse with the same inputs to resume" }),
+        parse: (input: string) => {
+          if (!input.trim()) throw new SyntaxError("expected a nonempty request ID");
+          return input;
+        },
+      },
+    },
     positional: {
       kind: "array",
       parameter: stringArgument({
