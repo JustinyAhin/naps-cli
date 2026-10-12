@@ -160,7 +160,8 @@ const keywordFlags = {
     kind: "parsed" as const,
     parse: budgetParser,
     optional: true as const,
-    brief: "Maximum estimated provider spend in USD (zero prevents new paid tasks)",
+    placeholder: "<USD>",
+    brief: "<USD> Maximum estimated provider spend (zero prevents new paid tasks)",
   },
   metadata: {
     kind: "boolean" as const,
@@ -187,7 +188,10 @@ const keywordsBulk = buildCommand({
     flags: {
       ...keywordFlags,
       requestId: {
-        ...optionalStringFlag({ brief: "Resumable run ID; reuse with the same inputs to resume" }),
+        ...optionalStringFlag({
+          brief: "<value> Resumable run ID; reuse with the same inputs to resume",
+        }),
+        placeholder: "<value>",
         parse: (input: string) => {
           if (!input.trim()) throw new SyntaxError("expected a nonempty request ID");
           return input;

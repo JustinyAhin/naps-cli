@@ -54,6 +54,24 @@ afterEach(() => {
 });
 
 describe("CLI application", () => {
+  test("keyword help documents value placeholders and bulk-only resume IDs", async () => {
+    for (const command of ["keywords", "keywords-bulk", "keywords-serp", "keywords-website"]) {
+      const output = createTestContext();
+      await run(app, [command, "--help"], output.context);
+
+      expect(output.context.process.exitCode).toBe(0);
+      expect(output.stderr()).toBe("");
+      expect(output.stdout()).toMatch(/\[--budget\]\s+<USD>/);
+      expect(output.stdout()).toContain("--refresh");
+      expect(output.stdout()).toContain("--metadata");
+      if (command === "keywords-bulk") {
+        expect(output.stdout()).toMatch(/\[--request-id\]\s+<value>/);
+      } else {
+        expect(output.stdout()).not.toContain("--request-id");
+      }
+    }
+  });
+
   test("rejects excessive Twitter requests with a structured argument error", async () => {
     const context = createTestContext();
     await run(app, ["twitter-search", "query", "--limit", "101"], context.context);

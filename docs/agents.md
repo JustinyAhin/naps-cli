@@ -23,6 +23,7 @@ The four keyword commands accept `--refresh`, `--budget`, and `--metadata`. Only
 
 ```sh
 naps-cli keywords 'invoice software' --metadata >results.json 2>metadata.json
+naps-cli keywords 'invoice software' --refresh --metadata >fresh-results.json 2>fresh-metadata.json
 naps-cli keywords-bulk 'invoice software' 'bookkeeping' --budget 0.05 --request-id research-1 --metadata
 ```
 
