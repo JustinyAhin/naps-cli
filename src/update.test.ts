@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { downloadBinary, updateCli } from "./update";
-import { verifyReleaseSignature } from "./release-signing";
 
 const temporaryDirectories: string[] = [];
 let signingDirectory: string;
@@ -224,20 +223,6 @@ describe("CLI updater", () => {
   test("rejects a forged checksum signature", async () => {
     const checksum = `${"0".repeat(64)}  cli/v0.4.0/naps-cli-linux-x64\n`;
     const signature = await sign(checksum);
-    expect(
-      await verifyReleaseSignature({
-        content: new TextEncoder().encode(checksum),
-        signature,
-        publicKey: signingPublicKey,
-      }),
-    ).toBe(true);
-    expect(
-      await verifyReleaseSignature({
-        content: new TextEncoder().encode(checksum.replace("0", "1")),
-        signature,
-        publicKey: signingPublicKey,
-      }),
-    ).toBe(false);
     const baseUrl = "https://downloads.test/cli/v0.4.0/naps-cli-linux-x64";
     const mock = createFetcher({
       responses: {
@@ -256,6 +241,38 @@ describe("CLI updater", () => {
       }),
     ).rejects.toMatchObject({ code: "UPDATE_VERIFICATION_FAILED" });
     expect(mock.calls).toHaveLength(2);
+  });
+
+  test("refuses a tampered signed manifest before downloading or replacing the executable", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "naps-cli-update-"));
+    temporaryDirectories.push(directory);
+    const executablePath = join(directory, "naps-cli");
+    await writeFile(executablePath, "old binary");
+    const manifest = JSON.stringify({ latest: "v0.4.0", versions: ["v0.3.1", "v0.4.0"] });
+    const mock = createFetcher({
+      responses: {
+        "https://downloads.test/versions.json": new Response(
+          manifest.replaceAll("v0.4.0", "v0.5.0"),
+        ),
+        "https://downloads.test/versions.json.sig": new Response(await sign(manifest)),
+      },
+    });
+    await expect(
+      updateCli({
+        currentVersion: "0.3.1",
+        env: { NAPS_CLI_BASE: "https://downloads.test" },
+        executablePath,
+        platform: "linux",
+        architecture: "x64",
+        fetch: mock.fetcher,
+        signingPublicKey,
+      }),
+    ).rejects.toMatchObject({ code: "UPDATE_VERIFICATION_FAILED" });
+    expect(await readFile(executablePath, "utf8")).toBe("old binary");
+    expect(mock.calls).toEqual([
+      "https://downloads.test/versions.json",
+      "https://downloads.test/versions.json.sig",
+    ]);
   });
 
   test("rejects a valid checksum signed for another version", async () => {

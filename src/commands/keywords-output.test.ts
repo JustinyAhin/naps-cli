@@ -41,7 +41,7 @@ const capture = () => {
 const keyword = (index: number) => ({
   keyword: `candidate-${index}`,
   volume: index * 7,
-  rank: 100 - index,
+  rank: index < 50 ? index + 51 : index - 49,
   cpc: 1.5,
   competition: "LOW",
   mainIntent: "informational",
@@ -72,7 +72,9 @@ test("suggestions and website preserve best results beyond the display cutoff", 
     const results = JSON.parse(output.stdout());
     expect(results).toHaveLength(count);
     expect(results.map((result: { keyword: string }) => result.keyword)).toEqual(
-      Array.from({ length: count }, (_, index) => `candidate-${99 - index}`),
+      Array.from({ length: count }, (_, index) =>
+        command === "keywords" ? `candidate-${99 - index}` : `candidate-${50 + index}`,
+      ),
     );
     expect(Object.keys(results[0]).sort()).toEqual(
       command === "keywords"
@@ -82,7 +84,7 @@ test("suggestions and website preserve best results beyond the display cutoff", 
   }
 });
 
-test("bulk preserves repeated input, full suggestions, errors, and unknown costs", async () => {
+test("bulk forwards original inputs and preserves full results, partial errors, and unknown costs", async () => {
   const data = {
     results: [
       {
@@ -93,18 +95,44 @@ test("bulk preserves repeated input, full suggestions, errors, and unknown costs
       },
       { keyword: "failed", suggestions: [], count: 0, cost: null, error: "UPSTREAM_FAILURE" },
       { keyword: "first", suggestions: [keyword(4)], count: 1, cost: 0 },
+      { keyword: "blocked", suggestions: [], count: 0, cost: 0, error: "BUDGET_EXCEEDED" },
     ],
-    totalKeywords: 3,
+    totalKeywords: 4,
   };
-  globalThis.fetch = (async (request: Request) => {
-    expect(await request.json()).toEqual({ keywords: "first\nfailed\nfirst" });
-    return Response.json(data);
-  }) as unknown as typeof fetch;
-  const output = capture();
-  await run(app, ["keywords-bulk", "first", "failed", "first"], output.context);
-  expect(output.context.process.exitCode).toBe(0);
-  expect(output.stderr()).toBe("");
-  expect(JSON.parse(output.stdout())).toEqual(data);
+  const metadata = {
+    actualCostUsd: null,
+    estimatedCostUsd: 0.048,
+    unknownCost: true,
+    jobStatus: "partial",
+  };
+  for (const optedIn of [false, true]) {
+    globalThis.fetch = (async (request: Request) => {
+      expect(await request.json()).toEqual({ keywords: " first \nfailed\n first \nblocked" });
+      expect(request.headers.get("Idempotency-Key")).toBe(optedIn ? "resume-run" : null);
+      expect(request.headers.get("X-Naps-Max-Cost-USD")).toBe(optedIn ? "0.025" : null);
+      return Response.json(data, { headers: { "X-Naps-Metadata": JSON.stringify(metadata) } });
+    }) as unknown as typeof fetch;
+    const output = capture();
+    await run(
+      app,
+      [
+        "keywords-bulk",
+        " first ",
+        "failed",
+        " first ",
+        "blocked",
+        ...(optedIn ? ["--request-id", "resume-run", "--budget", "0.025", "--metadata"] : []),
+      ],
+      output.context,
+    );
+    expect(output.context.process.exitCode).toBe(0);
+    expect(JSON.parse(output.stdout())).toEqual(data);
+    if (optedIn)
+      expect(JSON.parse(output.stderr())).toEqual({
+        seo: { requestId: null, providerCostUsd: null, metadata },
+      });
+    else expect(output.stderr()).toBe("");
+  }
 });
 
 test("SERP preserves operators and low-result queries without padding", async () => {
@@ -143,94 +171,94 @@ test("research controls preserve stdout and expose metadata only on opt-in", asy
     "X-Naps-Provider-Cost": "0",
   };
   for (const command of ["keywords", "keywords-website", "keywords-serp", "keywords-bulk"]) {
-    for (const optedIn of [false, true]) {
+    const page = {
+      rank: 2,
+      title: "Match",
+      domain: "example.com",
+      url: "https://example.com/page",
+      description: "Short description",
+      breadcrumb: "example.com > page",
+    };
+    const bulk = {
+      results: [{ keyword: "seed", suggestions: [keyword(7)], count: 1, cost: 0 }],
+      totalKeywords: 1,
+    };
+    const expected =
+      command === "keywords-bulk"
+        ? bulk
+        : command === "keywords-serp"
+          ? [page]
+          : command === "keywords"
+            ? [
+                {
+                  keyword: "candidate-7",
+                  volume: 49,
+                  competition: "LOW",
+                  mainIntent: "informational",
+                  difficulty: 12,
+                },
+              ]
+            : [{ keyword: "candidate-7", volume: 49, rank: 58, mainIntent: "informational" }];
+    const cases = [
+      { flags: [], refresh: null, budget: null, id: null, metadata: false },
+      { flags: ["--refresh"], refresh: "true", budget: null, id: null, metadata: false },
+      { flags: ["--budget", "0"], refresh: null, budget: "0", id: null, metadata: false },
+      { flags: ["--budget", "0.025"], refresh: null, budget: "0.025", id: null, metadata: false },
+      { flags: ["--metadata"], refresh: null, budget: null, id: null, metadata: true },
+      {
+        flags: [
+          "--refresh",
+          "--budget",
+          "0",
+          "--metadata",
+          ...(command === "keywords-bulk" ? ["--request-id", "my-run"] : []),
+        ],
+        refresh: "true",
+        budget: "0",
+        id: command === "keywords-bulk" ? "my-run" : null,
+        metadata: true,
+      },
+      ...(command === "keywords-bulk"
+        ? [
+            {
+              flags: ["--request-id", "my-run"],
+              refresh: null,
+              budget: null,
+              id: "my-run",
+              metadata: false,
+            },
+          ]
+        : []),
+    ];
+    for (const controls of cases) {
       globalThis.fetch = (async (request: Request) => {
-        expect(request.headers.get("X-Naps-Refresh")).toBe(optedIn ? "true" : null);
-        expect(request.headers.get("X-Naps-Max-Cost-USD")).toBe(optedIn ? "0" : null);
-        expect(request.headers.get("Idempotency-Key")).toBe(
-          optedIn && command === "keywords-bulk" ? "my-run" : null,
-        );
+        expect(request.headers.get("X-Naps-Refresh")).toBe(controls.refresh);
+        expect(request.headers.get("X-Naps-Max-Cost-USD")).toBe(controls.budget);
+        expect(request.headers.get("Idempotency-Key")).toBe(controls.id);
         expect(request.headers.get("X-Naps-Client-Type")).toBe("cli");
         return Response.json(
           command === "keywords-bulk"
-            ? { results: [], totalKeywords: 0 }
-            : { keywordSuggestions: [], keywords: [], results: [], cost: 0 },
+            ? bulk
+            : {
+                keywordSuggestions: [keyword(7)],
+                keywords: [keyword(7)],
+                results: [page],
+                cost: 0,
+              },
           { headers },
         );
       }) as unknown as typeof fetch;
       const output = capture();
-      await run(
-        app,
-        [
-          command,
-          "seed",
-          ...(optedIn
-            ? [
-                "--refresh",
-                "--budget",
-                "0",
-                "--metadata",
-                ...(command === "keywords-bulk" ? ["--request-id", "my-run"] : []),
-              ]
-            : []),
-        ],
-        output.context,
-      );
+      await run(app, [command, "seed", ...controls.flags], output.context);
       expect(output.context.process.exitCode).toBe(0);
-      expect(JSON.parse(output.stdout())).toEqual(
-        command === "keywords-bulk" ? { results: [], totalKeywords: 0 } : [],
-      );
-      if (optedIn)
+      expect(JSON.parse(output.stdout())).toEqual(expected);
+      if (controls.metadata)
         expect(JSON.parse(output.stderr())).toEqual({
           seo: { requestId: "server-run", providerCostUsd: 0, metadata },
         });
       else expect(output.stderr()).toBe("");
     }
   }
-});
-
-test("bulk budget stops retain entries and resume controls do not rewrite inputs", async () => {
-  const data = {
-    results: [
-      { keyword: "a", suggestions: [keyword(5)], count: 1, cost: 0.024 },
-      { keyword: "b", suggestions: [], count: 0, cost: 0, error: "BUDGET_EXCEEDED" },
-      { keyword: "a", suggestions: [keyword(5)], count: 1, cost: 0 },
-    ],
-    totalKeywords: 3,
-  };
-  const metadata = {
-    actualCostUsd: null,
-    estimatedCostUsd: 0.048,
-    unknownCost: true,
-    jobStatus: "partial",
-  };
-  globalThis.fetch = (async (request: Request) => {
-    expect(await request.json()).toEqual({ keywords: " a \nb\n a " });
-    expect(request.headers.get("Idempotency-Key")).toBe("resume-run");
-    expect(request.headers.get("X-Naps-Max-Cost-USD")).toBe("0.025");
-    return Response.json(data, { headers: { "X-Naps-Metadata": JSON.stringify(metadata) } });
-  }) as unknown as typeof fetch;
-  const output = capture();
-  await run(
-    app,
-    [
-      "keywords-bulk",
-      " a ",
-      "b",
-      " a ",
-      "--request-id",
-      "resume-run",
-      "--budget",
-      "0.025",
-      "--metadata",
-    ],
-    output.context,
-  );
-  expect(output.context.process.exitCode).toBe(0);
-  expect(JSON.parse(output.stdout())).toEqual(data);
-  expect(JSON.parse(output.stderr())).toEqual({
-    seo: { requestId: null, providerCostUsd: null, metadata },
-  });
 });
 
 test("budget and idempotency failures remain one structured stderr document", async () => {
@@ -240,7 +268,7 @@ test("budget and idempotency failures remain one structured stderr document", as
   ] as const) {
     globalThis.fetch = (async () =>
       Response.json(
-        { error: "REFUSED" },
+        { error: "REFUSED", detail: "private-provider-secret", token: "private-provider-secret" },
         {
           status,
           headers: {
@@ -253,6 +281,8 @@ test("budget and idempotency failures remain one structured stderr document", as
     await run(app, [command, "seed", "--metadata"], output.context);
     expect(output.context.process.exitCode).not.toBe(0);
     expect(output.stdout()).toBe("");
+    expect(output.stderr()).not.toContain("private-provider-secret");
+    expect(output.stderr()).not.toContain("test-not-a-real-key");
     expect(JSON.parse(output.stderr())).toMatchObject({
       error: {
         code,
@@ -291,18 +321,26 @@ test("ambiguous provider completion requires reconciliation, not a fresh retry",
 });
 
 test("invalid budgets fail before requests and malformed metadata does not discard results", async () => {
+  let requests = 0;
   globalThis.fetch = (async () => {
+    requests += 1;
     throw new Error("must not make a request");
   }) as unknown as typeof fetch;
-  for (const budget of ["-0.01", "NaN", "Infinity", "", " "]) {
-    const output = capture();
-    await run(app, ["keywords", "seed", "--budget", budget], output.context);
-    expect(JSON.parse(output.stderr()).error.code).toBe("INVALID_ARGUMENTS");
-    expect(output.stdout()).toBe("");
+  for (const command of ["keywords", "keywords-website", "keywords-serp", "keywords-bulk"]) {
+    for (const budget of ["-0.01", "NaN", "Infinity", "", " "]) {
+      const output = capture();
+      await run(app, [command, "seed", "--budget", budget], output.context);
+      expect(output.context.process.exitCode).not.toBe(0);
+      expect(JSON.parse(output.stderr()).error.code).toBe("INVALID_ARGUMENTS");
+      expect(output.stdout()).toBe("");
+    }
   }
   const emptyId = capture();
   await run(app, ["keywords-bulk", "seed", "--request-id", " "], emptyId.context);
   expect(JSON.parse(emptyId.stderr()).error.code).toBe("INVALID_ARGUMENTS");
+  expect(emptyId.stdout()).toBe("");
+  expect(emptyId.context.process.exitCode).not.toBe(0);
+  expect(requests).toBe(0);
   globalThis.fetch = (async () =>
     Response.json(
       { keywordSuggestions: [keyword(2)] },

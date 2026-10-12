@@ -84,5 +84,4 @@ const command = async function (this: CliContext, flags: { full?: boolean }, url
   }
 };
 
-export { isRedditPostUrl };
 export default command;
