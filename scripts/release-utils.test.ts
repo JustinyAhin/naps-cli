@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildBinaryUploadPlan, parseTemporaryCredentials } from "./release-utils";
+import {
+  assertCfAuthenticated,
+  buildBinaryUploadPlan,
+  parseAccountId,
+  parseCfVersion,
+  parseTemporaryCredentials,
+} from "./release-utils";
 
 const fixture = async () => {
   const directory = await mkdtemp(join(tmpdir(), "naps-release-"));
@@ -31,6 +37,48 @@ describe("release upload plan", () => {
 });
 
 describe("cf output parsing", () => {
+  test("selects an explicit or sole authenticated account without guessing or leaking responses", () => {
+    const first = "a".repeat(32);
+    const second = "b".repeat(32);
+    const output = JSON.stringify({
+      authenticated: true,
+      tokenValid: true,
+      accounts: [{ id: first }, { id: second }],
+    });
+    expect(parseCfVersion({ output: "1.0.0-beta.14" })).toEqual([1, 0, 0]);
+    expect(() => assertCfAuthenticated({ output })).not.toThrow();
+    expect(parseAccountId({ output, accountId: ` ${second} ` })).toBe(second);
+    expect(parseAccountId({ output: JSON.stringify({ accounts: [{ id: first }] }) })).toBe(first);
+    for (const accounts of [[], [{ id: first }, { id: second }]]) {
+      expect(() => parseAccountId({ output: JSON.stringify({ accounts }) })).toThrow(
+        "Set CLOUDFLARE_ACCOUNT_ID",
+      );
+    }
+    for (const payload of [
+      {},
+      { authenticated: false },
+      { authenticated: true, tokenValid: false },
+    ]) {
+      expect(() => assertCfAuthenticated({ output: JSON.stringify(payload) })).toThrow(
+        "not authenticated",
+      );
+    }
+    for (const input of [
+      { output: "PRIVATE_INVALID_JSON" },
+      { output: JSON.stringify({ accounts: [{ id: "PRIVATE_INVALID_ID" }] }) },
+      { output, accountId: "PRIVATE_INVALID_ID" },
+    ]) {
+      try {
+        parseAccountId(input);
+        throw new Error("Expected invalid account selection to fail.");
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).not.toContain("PRIVATE_");
+        expect((error as Error).message).not.toBe("Expected invalid account selection to fail.");
+      }
+    }
+  });
+
   test("parses credentials without exposing their values in errors", () => {
     expect(
       parseTemporaryCredentials({

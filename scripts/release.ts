@@ -55,15 +55,18 @@ if (!process.env.NAPS_GSC_CLIENT_SECRET) {
 const run = async ({
   command,
   args,
+  accountId,
   stdout = "inherit",
   stderr = "inherit",
 }: {
   command: string;
   args: string[];
+  accountId?: string;
   stdout?: "inherit" | "pipe";
   stderr?: "inherit" | "pipe";
 }) => {
   const env = { ...process.env };
+  if (command === "cf" && accountId) env.CLOUDFLARE_ACCOUNT_ID = accountId;
   delete env.NAPS_CLI_SIGNING_KEY_CONTENT;
   delete env.NAPS_CLI_SIGNING_KEY;
   delete env.NAPS_GSC_REFRESH_TOKEN;
@@ -125,22 +128,14 @@ const checkCfAuth = async () => {
   if (compareVersions({ left: `v${cfVersion.join(".")}`, right: "v0.6.0" }) < 0) {
     throw new Error("cf 0.6.0 or newer is required");
   }
-  assertCfAuthenticated({
-    output: await run({
-      command: "cf",
-      args: ["auth", "whoami", "--quiet"],
-      stdout: "pipe",
-      stderr: "pipe",
-    }),
+  const output = await run({
+    command: "cf",
+    args: ["auth", "whoami", "--quiet"],
+    stdout: "pipe",
+    stderr: "pipe",
   });
-  return parseAccountId({
-    output: await run({
-      command: "cf",
-      args: ["context", "show", "--quiet"],
-      stdout: "pipe",
-      stderr: "pipe",
-    }),
-  });
+  assertCfAuthenticated({ output });
+  return parseAccountId({ output, accountId: process.env.CLOUDFLARE_ACCOUNT_ID });
 };
 
 const fetchManifest = async () => {
@@ -163,8 +158,10 @@ const nextManifest = ({ existing }: { existing: VersionsManifest }): VersionsMan
 
 const createTemporaryCredentials = async ({
   parentAccessKeyId,
+  accountId,
 }: {
   parentAccessKeyId: string;
+  accountId: string;
 }): Promise<TemporaryCredentials> => {
   const args = [
     "r2",
@@ -192,7 +189,7 @@ const createTemporaryCredentials = async ({
   ];
   if (version === BRIDGE_VERSION) args.push("--prefixes", "cli/latest/");
   return parseTemporaryCredentials({
-    output: await run({ command: "cf", args, stdout: "pipe", stderr: "pipe" }),
+    output: await run({ command: "cf", args, accountId, stdout: "pipe", stderr: "pipe" }),
   });
 };
 
@@ -272,7 +269,7 @@ const main = async ({ signingKeyPath }: { signingKeyPath: string }) => {
     await checkGitState();
     console.log("\n→ checking cf auth and account context");
     accountId = await checkCfAuth();
-    console.log("  authenticated with a default account");
+    console.log("  authenticated with a selected account");
   }
 
   console.log("\n→ checking CLI");
@@ -332,7 +329,7 @@ const main = async ({ signingKeyPath }: { signingKeyPath: string }) => {
     }
 
     console.log("\n→ creating one-hour, release-scoped R2 credentials");
-    const credentials = await createTemporaryCredentials({ parentAccessKeyId });
+    const credentials = await createTemporaryCredentials({ parentAccessKeyId, accountId });
     const client = new S3Client({
       ...credentials,
       bucket: BUCKET,
