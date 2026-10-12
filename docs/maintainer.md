@@ -98,7 +98,8 @@ NAPS_CLI_SIGNING_KEY_CONTENT=op("op://release-vault/naps-cli-signing/private key
 ```
 
 The Cloudflare API token and account ID are optional when this machine already has a
-working `cf` OAuth login and account context. The R2 parent Access Key ID alone does not
+working `cf` OAuth login with access to exactly one account. Set `CLOUDFLARE_ACCOUNT_ID`
+to select an account explicitly when more than one is available. The R2 parent Access Key ID alone does not
 authenticate `cf`. Its parent secret is not used. The release Google refresh token must
 match the pinned Desktop OAuth client, even if a development client override is present.
 
@@ -305,7 +306,7 @@ bun run release --dry-run
 
 `scripts/release.ts` does the following:
 
-1. Verifies a clean, synchronized `main`, `cf >=0.6.0` auth/context, typecheck, and tests
+1. Verifies a clean, synchronized `main`, `cf >=0.6.0` authentication/account selection, typecheck, and tests
 2. Cross-compiles all 5 targets
 3. Writes each raw binary, `<binary>.gz`, a SHA-256 of the raw binary, and an Ed25519 signature of each checksum
 4. Creates one-hour credentials scoped to this release's R2 paths
@@ -320,13 +321,19 @@ reducing release bytes substantially while retaining raw fallback for historical
 `--dry-run` performs the checks/build/package steps and prints every planned object and exact byte
 count. It skips Git/`cf` preflight, temporary credentials, and all uploads.
 
-**Auth**: install `cf >=0.6.0`, then establish its account context once:
+**Auth**: install `cf >=0.6.0` (tested with `1.0.0-beta.14`), then authenticate:
 
 ```bash
 cf auth login
-cf context set account-id <account-id>
-cf auth whoami
+cf auth whoami --quiet
 ```
+
+The release script reads the JSON `cf auth whoami` response. It uses an explicit
+`CLOUDFLARE_ACCOUNT_ID` when set; otherwise exactly one returned account is required.
+No account is chosen arbitrarily and no persistent `cf` configuration is changed.
+The selected ID is passed to the temporary-credentials child command through its
+environment and also selects the R2 upload endpoint. Current `cf` has no `context`
+command.
 
 Create a long-lived **Object Read & Write** R2 API token scoped to `naps-cli-releases` under
 **R2 → Overview → Manage API Tokens**, then export only its Access Key ID:
@@ -336,11 +343,10 @@ export CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID=<access-key-id>
 ```
 
 For headless use, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` can replace the saved
-OAuth login and account context. Load them only for release commands. The parent secret
-is not needed by the release process. The script reads the selected account from
-`cf context show`, asks Cloudflare for path-scoped temporary S3 credentials, and keeps those
-credentials in memory without logging them. `CLOUDFLARE_ACCOUNT_ID` is not needed when
-the `cf` account context is already configured.
+OAuth login and automatic single-account selection. Load them only for release commands.
+The parent secret is not needed by the release process. The script asks Cloudflare for
+path-scoped temporary S3 credentials and keeps those credentials in memory without
+logging them.
 
 ### R2 object layout
 

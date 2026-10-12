@@ -64,26 +64,37 @@ const parseCfVersion = ({ output }: { output: string }) => {
   return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
 };
 
-const parseAccountId = ({ output }: { output: string }) => {
-  const value = parseJson({ output, label: "cf context show" }) as {
-    accountId?: string | { value?: string };
-    account_id?: string;
+const parseAccountId = ({ output, accountId }: { output: string; accountId?: string }) => {
+  const configuredId = accountId?.trim();
+  if (configuredId) {
+    if (!/^[a-f0-9]{32}$/i.test(configuredId)) {
+      throw new Error("CLOUDFLARE_ACCOUNT_ID must be a 32-character hexadecimal account ID.");
+    }
+    return configuredId;
+  }
+  const value = parseJson({ output, label: "cf auth whoami" }) as {
+    accounts?: Array<{ id?: string }>;
   };
-  const accountId =
-    typeof value.accountId === "string"
-      ? value.accountId
-      : (value.accountId?.value ?? value.account_id);
-  if (!accountId) {
+  if (!Array.isArray(value.accounts) || value.accounts.length !== 1) {
     throw new Error(
-      "cf context has no default account; set CLOUDFLARE_ACCOUNT_ID or run cf context set account-id <id>",
+      "Set CLOUDFLARE_ACCOUNT_ID when cf auth whoami does not return exactly one account.",
     );
   }
-  return accountId;
+  const selectedId = value.accounts[0]?.id;
+  if (typeof selectedId !== "string" || !/^[a-f0-9]{32}$/i.test(selectedId)) {
+    throw new Error("cf auth whoami returned an invalid account ID.");
+  }
+  return selectedId;
 };
 
 const assertCfAuthenticated = ({ output }: { output: string }) => {
-  const value = parseJson({ output, label: "cf auth whoami" }) as { authenticated?: boolean };
-  if (value.authenticated !== true) throw new Error("cf is not authenticated; run cf auth login");
+  const value = parseJson({ output, label: "cf auth whoami" }) as {
+    authenticated?: boolean;
+    tokenValid?: boolean;
+  };
+  if (value.authenticated !== true || value.tokenValid === false) {
+    throw new Error("cf is not authenticated with a valid token; run cf auth login");
+  }
 };
 
 const parseTemporaryCredentials = ({ output }: { output: string }): TemporaryCredentials => {
