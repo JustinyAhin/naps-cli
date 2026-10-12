@@ -11,7 +11,7 @@ import {
 import packageJson from "../../package.json";
 import type { CliContext } from "./context";
 import { cliText } from "./errors";
-import { boundedIntegerParser, stringParser } from "./parsers";
+import { boundedIntegerParser, budgetParser, stringParser } from "./parsers";
 
 const locationBrief =
   'Location/country name (e.g. "Germany"). Run `naps-cli locations` to list valid values.';
@@ -151,6 +151,23 @@ const twitterSearch = buildCommand({
 const keywordFlags = {
   location: optionalStringFlag({ brief: locationBrief }),
   language: optionalStringFlag({ brief: languageBrief }),
+  refresh: {
+    kind: "boolean" as const,
+    optional: true as const,
+    brief: "Bypass successful research cache",
+  },
+  budget: {
+    kind: "parsed" as const,
+    parse: budgetParser,
+    optional: true as const,
+    placeholder: "<USD>",
+    brief: "<USD> Maximum estimated provider spend (zero prevents new paid tasks)",
+  },
+  metadata: {
+    kind: "boolean" as const,
+    optional: true as const,
+    brief: "Write cost, cache, and job metadata to stderr",
+  },
 };
 
 const keywords = buildCommand({
@@ -168,7 +185,19 @@ const keywords = buildCommand({
 const keywordsBulk = buildCommand({
   loader: () => import("../commands/keywords-bulk"),
   parameters: {
-    flags: keywordFlags,
+    flags: {
+      ...keywordFlags,
+      requestId: {
+        ...optionalStringFlag({
+          brief: "<value> Resumable run ID; reuse with the same inputs to resume",
+        }),
+        placeholder: "<value>",
+        parse: (input: string) => {
+          if (!input.trim()) throw new SyntaxError("expected a nonempty request ID");
+          return input;
+        },
+      },
+    },
     positional: {
       kind: "array",
       parameter: stringArgument({
@@ -312,8 +341,19 @@ const completion = buildRouteMap({
   docs: { brief: "Manage Bash tab completion" },
 });
 
+const agentGuide = buildCommand({
+  loader: () => import("../commands/agent-guide"),
+  parameters: {},
+  docs: {
+    brief: "Print concise agent instructions and guide URLs as JSON (offline)",
+    fullDescription:
+      "Print concise JSON guidance offline. No credentials or network access are required. See docs/agents.md for the canonical detailed guide.",
+  },
+});
+
 const root = buildRouteMap({
   routes: {
+    "agent-guide": agentGuide,
     "reddit-search": redditSearch,
     "reddit-post": redditPost,
     "reddit-subreddits": redditSubreddits,

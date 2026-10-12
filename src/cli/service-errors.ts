@@ -134,6 +134,27 @@ const seoApiError = ({ error, response }: ApiErrorInput) => {
       hint: "Check NAPS_CLI_API_KEY or create a new key at https://naps.sh/cli.",
     });
   }
+  if (status === 402) {
+    return cliError({
+      code: "SEO_BUDGET_EXCEEDED",
+      message: "The next paid task exceeds the research budget.",
+      hint: "Increase --budget or use cached results without --refresh.",
+    });
+  }
+  if (status === 409) {
+    if (value === "AMBIGUOUS_PROVIDER_OUTCOME") {
+      return cliError({
+        code: "SEO_AMBIGUOUS_PROVIDER_OUTCOME",
+        message: "The provider task's completion and cost are unknown. Research is held.",
+        hint: "Do not retry, refresh, or choose a new request ID. Contact the service operator to reconcile the provider task.",
+      });
+    }
+    return cliError({
+      code: "SEO_REQUEST_ID_CONFLICT",
+      message: "This request ID belongs to a different research payload.",
+      hint: "Resume with the original inputs, or use a new --request-id for a different run.",
+    });
+  }
   if (status === 429) {
     if (isCliQuotaExceeded(error)) {
       return cliError({
