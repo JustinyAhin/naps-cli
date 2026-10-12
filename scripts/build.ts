@@ -4,7 +4,7 @@ import { rm } from "node:fs/promises";
 
 const googleClientSecret = process.env.NAPS_GSC_CLIENT_SECRET ?? "";
 
-const targets = [
+const crossTargets = [
   "bun-darwin-arm64",
   "bun-darwin-x64",
   "bun-linux-x64",
@@ -12,23 +12,25 @@ const targets = [
   "bun-windows-x64",
 ] as const;
 
+const hostOnly = process.argv.slice(2).includes("--host");
+const targets = hostOnly ? [undefined] : crossTargets;
+
 await rm("./dist", { recursive: true, force: true });
 
 const results = await Promise.all(
   targets.map(async (target) => {
-    const stripped = target.replace("bun-", "");
-    const outfile = `./dist/naps-cli-${stripped}`;
+    const outfile = target ? `./dist/naps-cli-${target.replace("bun-", "")}` : "./dist/naps-cli";
     const start = Date.now();
     const result = await Bun.build({
       entrypoints: ["./index.ts"],
-      compile: { target, outfile },
+      compile: { ...(target ? { target } : {}), outfile },
       minify: true,
       sourcemap: "inline",
       define: {
         NAPS_BUILD_GOOGLE_CLIENT_SECRET: JSON.stringify(googleClientSecret),
       },
     });
-    return { target, outfile, result, durationMs: Date.now() - start };
+    return { target: target ?? "host", outfile, result, durationMs: Date.now() - start };
   }),
 );
 
