@@ -48,7 +48,9 @@ bun test
 bun run build:host
 ```
 
-Run from source with `bun run dev --help`. See the [maintainer setup](docs/maintainer.md#varlock-and-1password) for Naps-specific field mappings. Type checks and tests do not need credentials. Regenerate
-API clients from the live OpenAPI endpoints with `bun run --cwd packages/api-clients gen`.
+Run from source with `bun run dev --help`. Build and release commands load Infisical secrets. Sign in with `infisical login` before a build.
+See the [maintainer setup](docs/maintainer.md#infisical-build-and-release) for project paths and credentials.
+Source development keeps its [Varlock and 1Password profile](docs/maintainer.md#varlock-and-1password-development).
+Type checks and tests do not need credentials. Regenerate API clients from the live OpenAPI endpoints with `bun run --cwd packages/api-clients gen`.
 
 MIT licensed; see [LICENSE](LICENSE).

@@ -48,31 +48,78 @@ src/commands/            → command implementations, lazy-loaded by the route t
 
 This CLI is meant to be distributed to end users. Do **not** read keys from local `.env` files or hard-coded paths.
 
-Repository development, build, and release commands use the optional
-[Varlock and 1Password setup in the KB](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-varlock-and-1password.md).
-They inject normal process environment variables; runtime command code does not need
-a new environment accessor. Installed binaries remain independent of this setup.
+Build and release commands load secrets from Infisical. Varlock validates and filters
+these inputs before Bun starts. Source development keeps its existing Varlock and
+1Password profile. Commands receive normal environment variables. Runtime code needs
+no new environment accessor. Installed CLI launchers remain independent of these profiles.
 
-### Varlock and 1Password
+Bun automatic dotenv loading is disabled. These commands do not load the repository's
+old `.env`. Tests, lint, and type checks need no secret-store authentication.
+Profiles strip declared unused credentials and loader tokens. Varlock does not isolate
+unrelated inherited environment variables.
 
-Use the KB link above for vault setup, service accounts, protected token storage, and
-automatic CLI launchers. The details below apply only to this repository.
+### Infisical build and release
 
-| Command                                 | Schema                    | Private machine settings                  | Loaded fields                                                  |
-| --------------------------------------- | ------------------------- | ----------------------------------------- | -------------------------------------------------------------- |
-| `bun run dev <command>`                 | `env/dev/.env.schema`     | `~/.config/varlock/naps-cli/.env.dev`     | Runtime Naps/provider keys and optional Google OAuth overrides |
-| `bun run build` or `bun run build:host` | `env/build/.env.schema`   | `~/.config/varlock/naps-cli/.env.release` | `NAPS_GSC_CLIENT_SECRET` only                                  |
-| `bun run release [--dry-run]`           | `env/release/.env.schema` | `~/.config/varlock/naps-cli/.env.release` | Google OAuth, signing, and Cloudflare release inputs           |
+Install the [Infisical CLI](https://infisical.com/docs/cli/overview) and run `bun install`.
+On the Mac, run `infisical login` with an account that can read `naps-cli-maintainer`.
+The committed `.infisical.json` contains project metadata only. It selects US Cloud.
 
-Bun automatic dotenv loading is disabled. The profiles do not load the repository's
-old `.env`. Credentials remain normal process environment variables. Tests, lint, and
-type checks need no 1Password authentication. Existing ambient exports override provider
-values; remove stale exports when completing the migration. Profiles strip declared
-unused credentials and loader tokens; Varlock is not a sandbox for unrelated variables.
+| Command                                 | Infisical environment and folder | Varlock schema            | Loaded inputs                                        |
+| --------------------------------------- | -------------------------------- | ------------------------- | ---------------------------------------------------- |
+| `bun run build` or `bun run build:host` | `prod:/build`                    | `env/build/.env.schema`   | Google Desktop client secret                         |
+| `bun run release [--dry-run]`           | `prod:/release`                  | `env/release/.env.schema` | Google OAuth, signing, and Cloudflare release inputs |
 
-For a vault-based setup, create private files with only the references you use. Protect
-their directory with mode `700` and the files with mode `600`. Copy exact field references
-from 1Password; the paths below are examples:
+Set these entries in the Infisical project:
+
+| Folder     | Variable                             | Value                                                |
+| ---------- | ------------------------------------ | ---------------------------------------------------- |
+| `/build`   | `NAPS_GSC_CLIENT_SECRET`             | Existing Google Desktop client secret                |
+| `/release` | `NAPS_GSC_CLIENT_SECRET`             | Reference to the `/build` entry                      |
+| `/release` | `NAPS_GSC_REFRESH_TOKEN`             | Existing refresh token for the pinned Desktop client |
+| `/release` | `NAPS_CLI_SIGNING_KEY_CONTENT`       | Complete existing OpenSSH private key                |
+| `/release` | `CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID` | Access Key ID from the publishing R2 token           |
+| `/release` | `CLOUDFLARE_API_TOKEN`               | API token from the same publishing R2 token          |
+| `/release` | `CLOUDFLARE_ACCOUNT_ID`              | Account that owns the release bucket                 |
+
+The Cloudflare API token and account ID can be omitted for a working `cf` OAuth login
+with access to exactly one account. With an API token, set the account ID explicitly.
+The R2 parent Access Key ID alone does not authenticate `cf`. Its parent secret is not used.
+The release Google refresh token must match the pinned Desktop OAuth client.
+
+Package scripts select each folder. They disable shell expansion and personal secret
+overrides. The shared Infisical values therefore supply these commands without per-variable
+command arguments. These schemas no longer import `~/.config/varlock/naps-cli/.env.release`
+or use 1Password for builds and releases.
+
+For headless use, authenticate with a machine identity that can read this project.
+The native CLI reads its access token from `INFISICAL_TOKEN`. Keep bootstrap credentials
+outside the repository. Follow the [machine identity guide](https://infisical.com/docs/documentation/platform/identities/machine-identities)
+for authentication and access controls. Varlock removes declared Infisical and 1Password
+bootstrap credentials before Bun starts. This does not prevent the same user from reading
+its credential files.
+
+Use **one** signing input. `NAPS_CLI_SIGNING_KEY_CONTENT` holds the complete existing
+OpenSSH private key. `NAPS_CLI_SIGNING_KEY` is an absolute path to a private key already
+on this machine. A path does not transfer the file. Do not generate a replacement key.
+The key must match the pinned installer and updater public key.
+
+The signing helper writes content to a temporary `700` directory and `600` file.
+It removes them on completion or error. Abrupt termination can leave `naps-release-signing-*`
+in the system temporary directory. Raw key content is removed before child commands.
+Builds receive no signing, refresh-token, or publishing credentials. Only the Desktop
+client secret is embedded.
+
+### Varlock and 1Password development
+
+`bun run dev <command>` still uses `env/dev/.env.schema` and the private file
+`~/.config/varlock/naps-cli/.env.dev`. Keep runtime tokens and Google OAuth overrides
+there until their separate migration is checked. Installed shared CLI credentials remain
+in their current setup. These changes do not modify deployed Worker secrets.
+
+Use the [KB runbook](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-varlock-and-1password.md)
+for vaults, service accounts, token storage, and automatic CLI launchers.
+The following references are examples. Copy exact field references from 1Password.
+Protect the private directory with mode `700` and its files with mode `600`.
 
 ```dotenv
 # ~/.config/varlock/naps-cli/.env.dev
@@ -83,48 +130,15 @@ NAPS_GSC_REFRESH_TOKEN=op("op://development-vault/shared-cli/NAPS_GSC_REFRESH_TO
 NAPS_GSC_CLIENT_SECRET=op("op://development-vault/naps-cli/NAPS_GSC_CLIENT_SECRET")
 ```
 
-Use `NAPS_CLI_API_KEY` for a public Naps key instead of legacy direct-service tokens when
-appropriate. `NAPS_CLI_X_BEARER_TOKEN` is optional for the official X provider. Source
-Search Console needs a Desktop client secret; installed releases already embed it.
+Use `NAPS_CLI_API_KEY` for a public Naps key when applicable. Legacy direct-service
+tokens remain available for private workflows. `NAPS_CLI_X_BEARER_TOKEN` is optional
+for the official X provider. Source Search Console needs a Desktop client secret.
+Installed releases already embed it.
 
-```dotenv
-# ~/.config/varlock/naps-cli/.env.release
-NAPS_GSC_CLIENT_SECRET=op("op://release-vault/naps-cli/NAPS_GSC_CLIENT_SECRET")
-NAPS_GSC_REFRESH_TOKEN=op("op://release-vault/naps-cli/NAPS_GSC_REFRESH_TOKEN")
-CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID=op("op://release-vault/naps-cli/CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID")
-CLOUDFLARE_API_TOKEN=op("op://release-vault/naps-cli/CLOUDFLARE_API_TOKEN")
-CLOUDFLARE_ACCOUNT_ID=op("op://release-vault/naps-cli/CLOUDFLARE_ACCOUNT_ID")
-NAPS_CLI_SIGNING_KEY_CONTENT=op("op://release-vault/naps-cli-signing/private key")
-```
-
-The Cloudflare API token and account ID are optional when this machine already has a
-working `cf` OAuth login with access to exactly one account. Set `CLOUDFLARE_ACCOUNT_ID`
-to select an account explicitly when more than one is available. The R2 parent Access Key ID alone does not
-authenticate `cf`. Its parent secret is not used. The release Google refresh token must
-match the pinned Desktop OAuth client, even if a development client override is present.
-
-Use **one** signing input: `NAPS_CLI_SIGNING_KEY_CONTENT` holds the complete existing
-OpenSSH private key through a vault field reference; `NAPS_CLI_SIGNING_KEY` is an absolute
-path to a private key already on this machine. A path does not sync the file. Do not
-generate a new key for this migration; it must match the pinned installer/updater key.
-Content is written to a temporary `700` directory and `600` file, then removed on completion
-or error. Abrupt termination can leave `naps-release-signing-*` in the system temporary
-directory. Raw key content is stripped before child commands; builds receive no signing,
-refresh-token, or publishing credentials. Only the Desktop client secret is embedded.
-
-The Mac uses desktop CLI integration with `OP_TOKEN` unset. For headless use, set `OP_TOKEN`
-in each private file to the protected-token resolver described in the KB. Use the appropriate
-development or release account; keep release credentials outside ordinary agent sessions.
-
-For an existing Environment, set `OP_ENVIRONMENT_ID` in the private file **instead of**
-vault field mappings. Use a local signing-key path in this mode: the pinned plugin's CLI
-Environment parser does not preserve multiline private-key content.
-
-When moving an existing shared setup, keep runtime tokens and `NAPS_GSC_REFRESH_TOKEN`
-there until installed launchers are migrated and checked. Move the R2 parent Access Key ID
-to the release scope. Remove the shared `NAPS_GSC_CLIENT_SECRET` if no existing launcher
-needs a custom OAuth override; source development and releases use their own field references.
-Repository commands do not change an installed CLI launcher or deployed Worker secrets.
+The Mac uses desktop CLI integration with `OP_TOKEN` unset. For headless source development,
+set `OP_TOKEN` to the protected-token resolver described in the KB. An existing Environment
+can use `OP_ENVIRONMENT_ID` instead of vault field mappings. Existing ambient exports
+override 1Password provider values. Remove stale exports when completing that migration.
 
 Public users authenticate SEO calls through the naps.sh gateway with one account key. The gateway, self-serve key issuance, and per-user daily quotas live in the `napsdotsh` web app. Hosted Reddit has a default quota of zero until commercial use is approved; the admin can enable it per account later. Release the web app migration and gateway before distributing a CLI build that expects `NAPS_CLI_API_KEY`.
 
@@ -266,15 +280,17 @@ While on `0.x`, breaking changes may ride a `MINOR` bump (semver allows this). A
 1. Clean working tree (`git status` shows nothing).
 2. On `main` and up to date with `origin/main`.
 3. Bump `package.json`; it is the sole release and runtime version source.
-4. Export `NAPS_GSC_CLIENT_SECRET` for the bundled Google Desktop OAuth client. Keep a working local Search Console connection, or set `NAPS_GSC_REFRESH_TOKEN` for that client in CI. If setting `NAPS_GSC_CLIENT_ID`, it must match `BUILT_IN_GOOGLE_CLIENT_ID`.
+4. Set the Google client secret and matching refresh token in Infisical `prod:/release`.
+   If you set `NAPS_GSC_CLIENT_ID`, it must match `BUILT_IN_GOOGLE_CLIENT_ID`.
 5. Supply `NAPS_CLI_SIGNING_KEY` as the path to the existing Ed25519 private key, or use
-   `NAPS_CLI_SIGNING_KEY_CONTENT` from a dedicated release vault field. Set only one.
+   `NAPS_CLI_SIGNING_KEY_CONTENT` from the Infisical release folder. Set only one.
    The public key must match `src/release-signing.ts` and both installers. Keep the key
    outside the repository and R2, back it up securely, and restrict access to release workflows.
 
-The normal `bun run release` command loads these inputs with Varlock. Machine settings
-and exact field mappings are documented in the Varlock section above. A release service
-account needs access to its dedicated release vault, not to personal password vaults.
+The normal `bun run release` command loads Infisical inputs through Varlock.
+See [Infisical build and release](#infisical-build-and-release) for the folder mappings.
+A machine identity needs access to this maintainer project, including its signing and
+publishing credentials.
 
 Both release and `--dry-run` first validate these credentials with a live Google token refresh (15-second timeout), before repository checks, tests, builds, or uploads. Cached access tokens cannot bypass validation. Validation does not save tokens or embed the refresh token. Invalid credentials, an expired/revoked refresh token, or a network failure stop the release. For `invalid_client`, correct the client secret; for an expired/revoked refresh token, run `naps-cli search-console connect` with the correct secret or replace the CI refresh token. Never paste credentials into logs or commit them.
 
@@ -328,22 +344,19 @@ cf auth login
 cf auth whoami --quiet
 ```
 
-The release script reads the JSON `cf auth whoami` response. It uses an explicit
-`CLOUDFLARE_ACCOUNT_ID` when set; otherwise exactly one returned account is required.
-No account is chosen arbitrarily and no persistent `cf` configuration is changed.
-The selected ID is passed to the temporary-credentials child command through its
-environment and also selects the R2 upload endpoint. Current `cf` has no `context`
-command.
+With OAuth, the release script reads the JSON `cf auth whoami` response.
+It uses `CLOUDFLARE_ACCOUNT_ID` when set. Otherwise, exactly one returned account is required.
+With `CLOUDFLARE_API_TOKEN`, set a valid 32-character hexadecimal account ID.
+This mode skips `cf auth whoami` because bucket-scoped R2 tokens can lack user-account access.
+Temporary credential creation checks the token permissions before upload.
+No persistent `cf` configuration is changed. The selected account ID also sets the R2 upload endpoint.
+Current `cf` has no `context` command.
 
 Create a long-lived **Object Read & Write** R2 API token scoped to `naps-cli-releases` under
-**R2 → Overview → Manage API Tokens**, then export only its Access Key ID:
-
-```bash
-export CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID=<access-key-id>
-```
-
-For headless use, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` can replace the saved
-OAuth login and automatic single-account selection. Load them only for release commands.
+**R2 → Overview → Manage API Tokens**.
+Store its API token and matching Access Key ID in Infisical `prod:/release`.
+Set `CLOUDFLARE_ACCOUNT_ID` for the bucket owner. This permits headless publishing
+without a saved OAuth login. Load these values only for release commands.
 The parent secret is not needed by the release process. The script asks Cloudflare for
 path-scoped temporary S3 credentials and keeps those credentials in memory without
 logging them.

@@ -25,7 +25,14 @@ const releaseNames = [
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
 ];
-const bootstrapNames = ["OP_TOKEN", "OP_SERVICE_ACCOUNT_TOKEN", "OP_ENVIRONMENT_ID"];
+const bootstrapNames = [
+  "OP_TOKEN",
+  "OP_SERVICE_ACCOUNT_TOKEN",
+  "OP_ENVIRONMENT_ID",
+  "INFISICAL_TOKEN",
+  "INFISICAL_CLIENT_ID",
+  "INFISICAL_CLIENT_SECRET",
+];
 const fakeToken = "ops_ISOLATED_ENVIRONMENT_TEST_TOKEN";
 const fakeSigningKey = [
   "-----BEGIN OPENSSH PRIVATE KEY-----",
@@ -59,6 +66,7 @@ const runFixture = async ({
   absent = [],
   ambient = {},
   references = {},
+  injected = {},
   fail = false,
 }: {
   profile: Profile;
@@ -67,6 +75,7 @@ const runFixture = async ({
   absent?: string[];
   ambient?: Record<string, string>;
   references?: Record<string, string>;
+  injected?: Record<string, string>;
   fail?: boolean;
 }) => {
   const directory = await mkdtemp(join(tmpdir(), "naps-environment-test-"));
@@ -80,9 +89,21 @@ const runFixture = async ({
 
     const schema = await readFile(join(repository, "env", profile, ".env.schema"), "utf8");
     const importPath = schema.match(/@import\((~\/\.config\/varlock\/naps-cli\/[^,]+),/)?.[1];
-    expect(importPath).toBeDefined();
-    const machineConfiguration = join(directory, "machine", basename(importPath!));
-    const fixtureSchema = schema.replace(importPath!, machineConfiguration);
+    const machineConfiguration = join(directory, "machine", ".env.dev");
+    let fixtureSchema = schema;
+    if (profile === "dev") {
+      expect(importPath).toBeDefined();
+      expect(basename(importPath!)).toBe(".env.dev");
+      fixtureSchema = schema.replace(importPath!, machineConfiguration);
+    } else {
+      expect(importPath).toBeUndefined();
+      expect(schema).not.toContain("@initOp");
+      expect(machineLines).toHaveLength(0);
+      await writeFile(
+        join(directory, ".infisical.json"),
+        await readFile(join(repository, ".infisical.json")),
+      );
+    }
     expect(fixtureSchema).not.toContain("~/.config/varlock/naps-cli");
     await writeFile(join(schemaDirectory, ".env.schema"), fixtureSchema);
     await writeFile(
@@ -175,6 +196,30 @@ if (args[0] === "environment" && args[1] === "read" && args[2] === "fixture-envi
       { mode: 0o700 },
     );
 
+    await writeFile(
+      join(directory, "bin", "infisical"),
+      `#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync(${JSON.stringify(join(directory, "infisical-calls"))}, JSON.stringify(args) + "\\n");
+if (args[0] !== "run") process.exit(1);
+if (process.env.FIXTURE_PROVIDER_FAIL === "1") {
+  console.error("Simulated Infisical failure");
+  process.exit(1);
+}
+const separator = args.indexOf("--");
+if (separator === -1 || separator === args.length - 1) process.exit(1);
+const result = spawnSync(args[separator + 1], args.slice(separator + 2), {
+  env: { ...process.env, ...${JSON.stringify(injected)} },
+  stdio: "inherit",
+});
+if (result.error) console.error(result.error.message);
+process.exit(result.status ?? 1);
+`,
+      { mode: 0o700 },
+    );
+
     const result = spawnSync(process.execPath, ["run", profile], {
       cwd: directory,
       encoding: "utf8",
@@ -192,8 +237,11 @@ if (args[0] === "environment" && args[1] === "read" && args[2] === "fixture-envi
     if (fail) {
       expect(result.status).not.toBe(0);
       expect(started).toBe(false);
-      expect(await Bun.file(join(directory, "op-calls")).exists()).toBe(true);
-      expect(result.stderr).toContain("Simulated provider failure");
+      const provider = profile === "dev" ? "op" : "infisical";
+      expect(await Bun.file(join(directory, `${provider}-calls`)).exists()).toBe(true);
+      expect(result.stderr).toContain(
+        profile === "dev" ? "Simulated provider failure" : "Simulated Infisical failure",
+      );
       return;
     }
 
@@ -202,6 +250,24 @@ if (args[0] === "environment" && args[1] === "read" && args[2] === "fixture-envi
       : "No fake op calls";
     expect(result.status, `${result.stderr}\nFake op calls: ${opCalls}`).toBe(0);
     expect(started).toBe(true);
+    if (profile !== "dev") {
+      expect(await Bun.file(join(directory, "op-calls")).exists()).toBe(false);
+      const infisicalCalls = (await readFile(join(directory, "infisical-calls"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as string[]);
+      expect(infisicalCalls).toHaveLength(1);
+      const args = infisicalCalls[0]!;
+      expect(args.slice(0, args.indexOf("--"))).toEqual([
+        "run",
+        "--env",
+        "prod",
+        "--path",
+        `/${profile}`,
+        "--expand=false",
+        "--secret-overriding=false",
+      ]);
+    }
     const line = result.stdout
       .split("\n")
       .find((value) => value.startsWith("ENVIRONMENT_TEST_RESULT="));
@@ -262,44 +328,29 @@ test("development can load private vault references without an Environment", asy
   });
 }, 30_000);
 
-test("build loads only the OAuth client secret and strips inherited runtime and release credentials", async () => {
+test("build loads Infisical client secret and strips inherited runtime, release, and loader credentials", async () => {
   await runFixture({
     profile: "build",
-    machineLines: ["OP_ENVIRONMENT_ID=fixture-environment", `OP_TOKEN=${fakeToken}`],
+    injected: { NAPS_GSC_CLIENT_SECRET: providerValues.NAPS_GSC_CLIENT_SECRET! },
     expected: { NAPS_GSC_CLIENT_SECRET: providerValues.NAPS_GSC_CLIENT_SECRET! },
     absent: [...runtimeNames, ...runtimeAliases, ...releaseNames],
-    ambient: inherited([...runtimeNames, ...runtimeAliases, ...releaseNames]),
+    ambient: inherited([...runtimeNames, ...runtimeAliases, ...releaseNames, ...bootstrapNames]),
   });
 }, 30_000);
 
-test("release resolves vault fields without an Environment and preserves the full multiline key", async () => {
-  const references = {
-    "op://fixture/release/client-secret": "FAKE_VAULT_CLIENT_SECRET",
-    "op://fixture/release/refresh-token": "FAKE_VAULT_REFRESH_TOKEN",
-    "op://fixture/release/signing-key": fakeSigningKey,
-    "op://fixture/release/cloudflare-token": "FAKE_VAULT_CLOUDFLARE_TOKEN",
+test("release loads Infisical inputs and preserves the full multiline signing key", async () => {
+  const injected = {
+    NAPS_GSC_CLIENT_SECRET: "FAKE_INFISICAL_CLIENT_SECRET",
+    NAPS_GSC_REFRESH_TOKEN: "FAKE_INFISICAL_REFRESH_TOKEN",
+    NAPS_CLI_SIGNING_KEY_CONTENT: fakeSigningKey,
+    CLOUDFLARE_API_TOKEN: "FAKE_INFISICAL_CLOUDFLARE_TOKEN",
+    CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID: "FAKE_INFISICAL_PARENT_ACCESS_ID",
+    CLOUDFLARE_ACCOUNT_ID: "FAKE_INFISICAL_ACCOUNT_ID",
   };
   await runFixture({
     profile: "release",
-    machineLines: [
-      `OP_TOKEN=${fakeToken}`,
-      'NAPS_GSC_CLIENT_SECRET=op("op://fixture/release/client-secret")',
-      'NAPS_GSC_REFRESH_TOKEN=op("op://fixture/release/refresh-token")',
-      'NAPS_CLI_SIGNING_KEY_CONTENT=op("op://fixture/release/signing-key")',
-      'CLOUDFLARE_API_TOKEN=op("op://fixture/release/cloudflare-token")',
-      "CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID=FAKE_VAULT_PARENT_ACCESS_ID",
-      "CLOUDFLARE_ACCOUNT_ID=FAKE_VAULT_ACCOUNT_ID",
-      "NAPS_CLI_TWITTERAPI_TOKEN=FAKE_UNIMPORTED_RUNTIME_TOKEN",
-    ],
-    references,
-    expected: {
-      NAPS_GSC_CLIENT_SECRET: references["op://fixture/release/client-secret"],
-      NAPS_GSC_REFRESH_TOKEN: references["op://fixture/release/refresh-token"],
-      NAPS_CLI_SIGNING_KEY_CONTENT: fakeSigningKey,
-      CLOUDFLARE_API_TOKEN: references["op://fixture/release/cloudflare-token"],
-      CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID: "FAKE_VAULT_PARENT_ACCESS_ID",
-      CLOUDFLARE_ACCOUNT_ID: "FAKE_VAULT_ACCOUNT_ID",
-    },
+    injected,
+    expected: injected,
     absent: [
       ...runtimeNames.filter((name) => name !== "NAPS_GSC_REFRESH_TOKEN"),
       ...runtimeAliases,
@@ -308,8 +359,13 @@ test("release resolves vault fields without an Environment and preserves the ful
     ambient: inherited([
       ...runtimeNames.filter((name) => !name.startsWith("NAPS_GSC_")),
       ...runtimeAliases,
+      ...bootstrapNames,
     ]),
   });
+}, 30_000);
+
+test("an Infisical failure prevents the maintainer application child from starting", async () => {
+  await runFixture({ profile: "release", fail: true });
 }, 30_000);
 
 test("a configured provider failure prevents the application child from starting", async () => {

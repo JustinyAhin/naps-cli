@@ -12,14 +12,13 @@ import {
   UPLOAD_CONCURRENCY,
   VERSION_PATTERN,
   artifact,
-  assertCfAuthenticated,
   buildBinaryUploadPlan,
   compareVersions,
   mapConcurrent,
-  parseAccountId,
   parseCfVersion,
   parseManifest,
   parseTemporaryCredentials,
+  resolveCfAccountId,
   totalBytes,
   type TemporaryCredentials,
   type UploadArtifact,
@@ -128,14 +127,17 @@ const checkCfAuth = async () => {
   if (compareVersions({ left: `v${cfVersion.join(".")}`, right: "v0.6.0" }) < 0) {
     throw new Error("cf 0.6.0 or newer is required");
   }
-  const output = await run({
-    command: "cf",
-    args: ["auth", "whoami", "--quiet"],
-    stdout: "pipe",
-    stderr: "pipe",
+  return resolveCfAccountId({
+    hasApiToken: Boolean(process.env.CLOUDFLARE_API_TOKEN?.trim()),
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+    getWhoami: () =>
+      run({
+        command: "cf",
+        args: ["auth", "whoami", "--quiet"],
+        stdout: "pipe",
+        stderr: "pipe",
+      }),
   });
-  assertCfAuthenticated({ output });
-  return parseAccountId({ output, accountId: process.env.CLOUDFLARE_ACCOUNT_ID });
 };
 
 const fetchManifest = async () => {
@@ -269,7 +271,7 @@ const main = async ({ signingKeyPath }: { signingKeyPath: string }) => {
     await checkGitState();
     console.log("\n→ checking cf auth and account context");
     accountId = await checkCfAuth();
-    console.log("  authenticated with a selected account");
+    console.log("  selected account; R2 permissions checked before upload");
   }
 
   console.log("\n→ checking CLI");

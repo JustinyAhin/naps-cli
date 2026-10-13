@@ -97,6 +97,28 @@ const assertCfAuthenticated = ({ output }: { output: string }) => {
   }
 };
 
+const resolveCfAccountId = async ({
+  hasApiToken,
+  accountId,
+  getWhoami,
+}: {
+  hasApiToken: boolean;
+  accountId?: string;
+  getWhoami: () => Promise<string>;
+}) => {
+  if (hasApiToken) {
+    if (!accountId?.trim()) {
+      throw new Error("CLOUDFLARE_ACCOUNT_ID is required with CLOUDFLARE_API_TOKEN.");
+    }
+    // Bucket-scoped R2 tokens can lack the user-profile access used by whoami.
+    // The temporary-credentials request checks their R2 permissions before upload.
+    return parseAccountId({ output: "", accountId });
+  }
+  const output = await getWhoami();
+  assertCfAuthenticated({ output });
+  return parseAccountId({ output, accountId });
+};
+
 const parseTemporaryCredentials = ({ output }: { output: string }): TemporaryCredentials => {
   const value = parseJson({ output, label: "cf temporary credentials" }) as Record<string, unknown>;
   const accessKeyId = value.accessKeyId ?? value.access_key_id;
@@ -208,6 +230,7 @@ export {
   parseCfVersion,
   parseManifest,
   parseTemporaryCredentials,
+  resolveCfAccountId,
   totalBytes,
 };
 export type { TemporaryCredentials, UploadArtifact, VersionsManifest };
