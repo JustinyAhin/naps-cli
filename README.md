@@ -35,7 +35,7 @@ Hosted Reddit access is disabled for new accounts until its commercial use is ap
 - [Agent and script usage](docs/agents.md)
 - [Data and credential handling](docs/data-and-credentials.md)
 - [Maintainer and release notes](docs/maintainer.md)
-- [Environment variables with Varlock and 1Password (KB)](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-varlock-and-1password.md)
+- [Environment variables with Infisical (KB)](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-infisical.md)
 
 ## Development
 
@@ -48,9 +48,10 @@ bun test
 bun run build:host
 ```
 
-Run from source with `bun run dev --help`. Build and release commands load Infisical secrets. Sign in with `infisical login` before a build.
+Development, build, and release commands load Infisical secrets through Varlock. Sign in with `infisical login` before these commands.
+Run from source with `bun run dev --help`.
 See the [maintainer setup](docs/maintainer.md#infisical-build-and-release) for project paths and credentials.
-Source development keeps its [Varlock and 1Password profile](docs/maintainer.md#varlock-and-1password-development).
+Source development combines the [shared runtime and Google Desktop scopes](docs/maintainer.md#infisical-source-development).
 Type checks and tests do not need credentials. Regenerate API clients from the live OpenAPI endpoints with `bun run --cwd packages/api-clients gen`.
 
 MIT licensed; see [LICENSE](LICENSE).

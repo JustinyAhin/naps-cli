@@ -48,10 +48,10 @@ src/commands/            → command implementations, lazy-loaded by the route t
 
 This CLI is meant to be distributed to end users. Do **not** read keys from local `.env` files or hard-coded paths.
 
-Build and release commands load secrets from Infisical. Varlock validates and filters
-these inputs before Bun starts. Source development keeps its existing Varlock and
-1Password profile. Commands receive normal environment variables. Runtime code needs
-no new environment accessor. Installed CLI launchers remain independent of these profiles.
+Development, build, and release commands load secrets from Infisical. Varlock validates
+and filters these inputs before Bun starts. Commands receive normal environment variables.
+Runtime code needs no new environment accessor. Installed CLI launchers remain independent
+of these repository profiles.
 
 Bun automatic dotenv loading is disabled. These commands do not load the repository's
 old `.env`. Tests, lint, and type checks need no secret-store authentication.
@@ -93,11 +93,11 @@ The release Google refresh token must match the pinned Desktop OAuth client.
 Package scripts pass the project ID explicitly and select each folder. Machine identity
 commands require the explicit ID. Infisical resolves secret references before Varlock starts.
 The scripts disable personal secret overrides. Shared Infisical values supply these commands
-without per-variable command arguments. These schemas no longer import `~/.config/varlock/naps-cli/.env.release`
-or use 1Password for builds and releases.
+without per-variable command arguments. Repository schemas do not import private 1Password
+profiles or use its plugin.
 
 For headless use, the machine identity must read this maintainer project, including its release secrets.
-Varlock removes declared Infisical and 1Password bootstrap credentials before Bun starts.
+Varlock removes declared Infisical and legacy 1Password bootstrap credentials before Bun starts.
 This does not prevent the same user from reading its credential files.
 
 Use **one** signing input. `NAPS_CLI_SIGNING_KEY_CONTENT` holds the complete existing
@@ -111,36 +111,30 @@ in the system temporary directory. Raw key content is removed before child comma
 Builds receive no signing, refresh-token, or publishing credentials. Only the Desktop
 client secret is embedded.
 
-### Varlock and 1Password development
+### Infisical source development
 
-`bun run dev <command>` still uses `env/dev/.env.schema` and the private file
-`~/.config/varlock/naps-cli/.env.dev`. Keep runtime tokens and Google OAuth overrides
-there until their separate migration is checked. Installed shared CLI credentials remain
-in their current setup. These changes do not modify deployed Worker secrets.
+`bun run dev <command>` loads two scopes before `env/dev/.env.schema` filters the inputs:
 
-Use the [KB runbook](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-varlock-and-1password.md)
-for vaults, service accounts, token storage, and automatic CLI launchers.
-The following references are examples. Copy exact field references from 1Password.
-Protect the private directory with mode `700` and its files with mode `600`.
+| Project               | Environment and folder | Inputs                                                   |
+| --------------------- | ---------------------- | -------------------------------------------------------- |
+| `shared-creds`        | `dev:/cli`             | Shared runtime keys and the Search Console refresh token |
+| `naps-cli-maintainer` | `prod:/build`          | Existing Google Desktop client secret                    |
 
-```dotenv
-# ~/.config/varlock/naps-cli/.env.dev
-NAPS_CLI_SEO_API_TOKEN=op("op://development-vault/shared-cli/NAPS_CLI_SEO_API_TOKEN")
-NAPS_CLI_REDDIT_API_TOKEN=op("op://development-vault/shared-cli/NAPS_CLI_REDDIT_API_TOKEN")
-NAPS_CLI_TWITTERAPI_TOKEN=op("op://development-vault/shared-cli/NAPS_CLI_TWITTERAPI_TOKEN")
-NAPS_GSC_REFRESH_TOKEN=op("op://development-vault/shared-cli/NAPS_GSC_REFRESH_TOKEN")
-NAPS_GSC_CLIENT_SECRET=op("op://development-vault/naps-cli/NAPS_GSC_CLIENT_SECRET")
-```
+The package script combines the scopes with two native Infisical commands.
+It does not duplicate the Google secret or need cross-project secret references.
+The authenticated user or machine identity must read both projects.
+Source development receives no signing or publishing inputs from Infisical.
+Varlock also removes declared inherited release and bootstrap credentials.
 
+Keep shared runtime credentials separate from the maintainer release folder.
 Use `NAPS_CLI_API_KEY` for a public Naps key when applicable. Legacy direct-service
 tokens remain available for private workflows. `NAPS_CLI_X_BEARER_TOKEN` is optional
-for the official X provider. Source Search Console needs a Desktop client secret.
+for the official X provider. Source Search Console needs the Desktop client secret.
 Installed releases already embed it.
 
-The Mac uses desktop CLI integration with `OP_TOKEN` unset. For headless source development,
-set `OP_TOKEN` to the protected-token resolver described in the KB. An existing Environment
-can use `OP_ENVIRONMENT_ID` instead of vault field mappings. Existing ambient exports
-override 1Password provider values. Remove stale exports when completing that migration.
+Old private `~/.config/varlock/naps-cli/.env.dev` and `.env.release` files are no longer
+used by repository commands. These changes do not modify an installed CLI launcher
+or deployed Worker secrets. Use the KB runbook for separate launcher configuration.
 
 Public users authenticate SEO calls through the naps.sh gateway with one account key. The gateway, self-serve key issuance, and per-user daily quotas live in the `napsdotsh` web app. Hosted Reddit has a default quota of zero until commercial use is approved; the admin can enable it per account later. Release the web app migration and gateway before distributing a CLI build that expects `NAPS_CLI_API_KEY`.
 

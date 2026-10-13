@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type Profile = "dev" | "build" | "release";
@@ -36,7 +36,6 @@ const bootstrapNames = [
   "INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET",
   "INFISICAL_UNIVERSAL_AUTH_ACCESS_TOKEN",
 ];
-const fakeToken = "ops_ISOLATED_ENVIRONMENT_TEST_TOKEN";
 const fakeSigningKey = [
   "-----BEGIN OPENSSH PRIVATE KEY-----",
   "FAKE_FIRST_LINE_WITH_NO_SIGNING_CAPABILITY",
@@ -64,53 +63,42 @@ const inherited = (names: string[]) =>
 
 const runFixture = async ({
   profile,
-  machineLines = [],
   expected = {},
   absent = [],
   ambient = {},
-  references = {},
   injected = {},
+  injectedByPath = {},
   secretReferences = {},
   fail = false,
+  failPath = "",
 }: {
   profile: Profile;
-  machineLines?: string[];
   expected?: Record<string, string>;
   absent?: string[];
   ambient?: Record<string, string>;
-  references?: Record<string, string>;
   injected?: Record<string, string>;
+  injectedByPath?: Record<string, Record<string, string>>;
   secretReferences?: Record<string, string>;
   fail?: boolean;
+  failPath?: string;
 }) => {
   const directory = await mkdtemp(join(tmpdir(), "naps-environment-test-"));
   const schemaDirectory = join(directory, "env", profile);
 
   try {
     await mkdir(schemaDirectory, { recursive: true });
-    await mkdir(join(directory, "machine"));
     await mkdir(join(directory, "bin"));
     await symlink(join(repository, "node_modules"), join(directory, "node_modules"));
 
     const schema = await readFile(join(repository, "env", profile, ".env.schema"), "utf8");
-    const importPath = schema.match(/@import\((~\/\.config\/varlock\/naps-cli\/[^,]+),/)?.[1];
-    const machineConfiguration = join(directory, "machine", ".env.dev");
-    let fixtureSchema = schema;
-    if (profile === "dev") {
-      expect(importPath).toBeDefined();
-      expect(basename(importPath!)).toBe(".env.dev");
-      fixtureSchema = schema.replace(importPath!, machineConfiguration);
-    } else {
-      expect(importPath).toBeUndefined();
-      expect(schema).not.toContain("@initOp");
-      expect(machineLines).toHaveLength(0);
-      await writeFile(
-        join(directory, ".infisical.json"),
-        await readFile(join(repository, ".infisical.json")),
-      );
-    }
-    expect(fixtureSchema).not.toContain("~/.config/varlock/naps-cli");
-    await writeFile(join(schemaDirectory, ".env.schema"), fixtureSchema);
+    expect(schema).not.toContain("@import");
+    expect(schema).not.toContain("@initOp");
+    expect(schema).not.toContain("@varlock/1password-plugin");
+    await writeFile(
+      join(directory, ".infisical.json"),
+      await readFile(join(repository, ".infisical.json")),
+    );
+    await writeFile(join(schemaDirectory, ".env.schema"), schema);
     await writeFile(
       join(directory, "bunfig.toml"),
       await readFile(join(repository, "bunfig.toml")),
@@ -137,10 +125,6 @@ const runFixture = async ({
       join(directory, ".env.local"),
       "NAPS_GSC_CLIENT_ID=FAKE_STALE_CLIENT_ID\nNAPS_GSC_CLIENT_SECRET=FAKE_STALE_CLIENT_SECRET\n",
     );
-    if (machineLines.length) {
-      await writeFile(machineConfiguration, `${machineLines.join("\n")}\n`, { mode: 0o600 });
-    }
-
     await writeFile(
       join(directory, "inspect.ts"),
       `import { writeFileSync } from "node:fs";
@@ -164,39 +148,10 @@ console.log("ENVIRONMENT_TEST_RESULT=" + JSON.stringify({
     await writeFile(
       join(directory, "bin", "op"),
       `#!/usr/bin/env node
-import { appendFileSync, readFileSync } from "node:fs";
-const args = process.argv.slice(2);
-appendFileSync(${JSON.stringify(join(directory, "op-calls"))}, JSON.stringify({
-  args,
-  fixtureTokenMatches: process.env.OP_SERVICE_ACCOUNT_TOKEN === ${JSON.stringify(fakeToken)},
-}) + "\\n");
-if (process.env.OP_SERVICE_ACCOUNT_TOKEN !== ${JSON.stringify(fakeToken)}) {
-  console.error("Unexpected fixture authentication");
-  process.exit(1);
-}
-if (process.env.FIXTURE_PROVIDER_FAIL === "1") {
-  console.error("Simulated provider failure");
-  process.exit(1);
-}
-if (args[0] === "environment" && args[1] === "read" && args[2] === "fixture-environment") {
-  const values = ${JSON.stringify(providerValues)};
-  process.stdout.write(Object.entries(values).map(([name, value]) => name + "=" + value).join("\\n") + "\\n");
-} else if (args[0] === "read") {
-  const reference = args.find((value) => value.startsWith("op://"));
-  const values = ${JSON.stringify(references)};
-  if (!reference || !(reference in values)) process.exit(1);
-  process.stdout.write(values[reference]);
-} else if (args[0] === "inject") {
-  const templatePath = args[args.indexOf("-i") + 1];
-  const values = ${JSON.stringify(references)};
-  const template = readFileSync(templatePath, "utf8");
-  process.stdout.write(template.replace(/\\{\\{\\s*(op:\\/\\/.*?)\\s*\\}\\}/g, (_, reference) => {
-    if (!(reference in values)) throw new Error("Unexpected fixture reference");
-    return values[reference];
-  }));
-} else {
-  process.exit(1);
-}
+import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(join(directory, "op-calls"))}, "unexpected");
+console.error("1Password must not be called");
+process.exit(1);
 `,
       { mode: 0o700 },
     );
@@ -209,13 +164,16 @@ import { appendFileSync } from "node:fs";
 const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(join(directory, "infisical-calls"))}, JSON.stringify(args) + "\\n");
 if (args[0] !== "run") process.exit(1);
-if (process.env.FIXTURE_PROVIDER_FAIL === "1") {
+const path = args[args.indexOf("--path") + 1];
+if (process.env.FIXTURE_PROVIDER_FAIL === "1" &&
+    (!process.env.FIXTURE_PROVIDER_FAIL_PATH || process.env.FIXTURE_PROVIDER_FAIL_PATH === path)) {
   console.error("Simulated Infisical failure");
   process.exit(1);
 }
 const separator = args.indexOf("--");
 if (separator === -1 || separator === args.length - 1) process.exit(1);
-const values = ${JSON.stringify(injected)};
+const byPath = ${JSON.stringify(injectedByPath)};
+const values = byPath[path] ?? ${JSON.stringify(injected)};
 const references = ${JSON.stringify(secretReferences)};
 const expand = !args.includes("--expand=false");
 const resolved = Object.fromEntries(Object.entries(values).map(([name, value]) => [
@@ -240,42 +198,54 @@ process.exit(result.status ?? 1);
         VARLOCK_TELEMETRY_DISABLED: "1",
         OP_SERVICE_ACCOUNT_TOKEN: "ops_FAKE_UNRELATED_INHERITED_TOKEN",
         FIXTURE_PROVIDER_FAIL: fail ? "1" : "0",
+        FIXTURE_PROVIDER_FAIL_PATH: failPath,
         ...ambient,
       },
     });
     expect(result.error).toBeUndefined();
     const started = await Bun.file(join(directory, "child-started")).exists();
+    expect(await Bun.file(join(directory, "op-calls")).exists()).toBe(false);
     if (fail) {
       expect(result.status).not.toBe(0);
       expect(started).toBe(false);
-      const provider = profile === "dev" ? "op" : "infisical";
-      expect(await Bun.file(join(directory, `${provider}-calls`)).exists()).toBe(true);
-      expect(result.stderr).toContain(
-        profile === "dev" ? "Simulated provider failure" : "Simulated Infisical failure",
-      );
+      expect(await Bun.file(join(directory, "infisical-calls")).exists()).toBe(true);
+      expect(result.stderr).toContain("Simulated Infisical failure");
       return;
     }
 
-    const opCalls = (await Bun.file(join(directory, "op-calls")).exists())
-      ? await readFile(join(directory, "op-calls"), "utf8")
-      : "No fake op calls";
-    expect(result.status, `${result.stderr}\nFake op calls: ${opCalls}`).toBe(0);
+    expect(result.status, result.stderr).toBe(0);
     expect(started).toBe(true);
-    if (profile !== "dev") {
-      expect(await Bun.file(join(directory, "op-calls")).exists()).toBe(false);
-      const infisicalCalls = (await readFile(join(directory, "infisical-calls"), "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as string[]);
-      expect(infisicalCalls).toHaveLength(1);
-      const args = infisicalCalls[0]!;
+    const infisicalCalls = (await readFile(join(directory, "infisical-calls"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[]);
+    const scopes =
+      profile === "dev"
+        ? [
+            { projectId: "1dc4d864-c7a3-41fe-804f-d60495474d5b", environment: "dev", path: "/cli" },
+            {
+              projectId: "47601232-b64a-4c18-b61e-fcaebcffb68e",
+              environment: "prod",
+              path: "/build",
+            },
+          ]
+        : [
+            {
+              projectId: "47601232-b64a-4c18-b61e-fcaebcffb68e",
+              environment: "prod",
+              path: `/${profile}`,
+            },
+          ];
+    expect(infisicalCalls).toHaveLength(scopes.length);
+    for (const [index, scope] of scopes.entries()) {
+      const args = infisicalCalls[index]!;
       expect(args.slice(0, args.indexOf("--"))).toEqual([
         "run",
-        "--projectId=47601232-b64a-4c18-b61e-fcaebcffb68e",
+        `--projectId=${scope.projectId}`,
         "--env",
-        "prod",
+        scope.environment,
         "--path",
-        `/${profile}`,
+        scope.path,
         "--secret-overriding=false",
       ]);
     }
@@ -301,41 +271,19 @@ test("plain Bun startup ignores old dotenv files and leaves optional OAuth overr
   });
 }, 30_000);
 
-test("development loads only runtime credentials from its Environment", async () => {
+test("development combines shared runtime credentials and the maintainer Google secret without release or loader inputs", async () => {
+  const runtime = Object.fromEntries(
+    runtimeNames
+      .filter((name) => name !== "NAPS_GSC_CLIENT_ID")
+      .map((name) => [name, providerValues[name]!]),
+  );
+  const google = { NAPS_GSC_CLIENT_SECRET: providerValues.NAPS_GSC_CLIENT_SECRET! };
   await runFixture({
     profile: "dev",
-    machineLines: [
-      "OP_ENVIRONMENT_ID=fixture-environment",
-      `OP_TOKEN=${fakeToken}`,
-      "NAPS_CLI_SIGNING_KEY_CONTENT=FAKE_UNIMPORTED_PRIVATE_KEY",
-    ],
-    expected: {
-      ...Object.fromEntries(
-        runtimeNames
-          .filter((name) => name !== "NAPS_GSC_CLIENT_ID")
-          .map((name) => [name, providerValues[name]]),
-      ),
-      NAPS_GSC_CLIENT_SECRET: providerValues.NAPS_GSC_CLIENT_SECRET!,
-    },
+    injectedByPath: { "/cli": runtime, "/build": google },
+    expected: { ...runtime, ...google },
     absent: ["NAPS_GSC_CLIENT_ID", ...releaseNames],
-    ambient: inherited(releaseNames),
-  });
-}, 30_000);
-
-test("development can load private vault references without an Environment", async () => {
-  const reference = "op://fixture/runtime/api-key";
-  const apiKey = "FAKE_PRIVATE_REFERENCE_API_KEY";
-  await runFixture({
-    profile: "dev",
-    machineLines: [`OP_TOKEN=${fakeToken}`, `NAPS_CLI_API_KEY=op("${reference}")`],
-    references: { [reference]: apiKey },
-    expected: { NAPS_CLI_API_KEY: apiKey },
-    absent: [
-      ...runtimeNames.filter((name) => name !== "NAPS_CLI_API_KEY"),
-      "NAPS_GSC_CLIENT_SECRET",
-      ...releaseNames,
-    ],
-    ambient: inherited(releaseNames),
+    ambient: inherited([...releaseNames, ...bootstrapNames]),
   });
 }, 30_000);
 
@@ -385,10 +333,10 @@ test("an Infisical failure prevents the maintainer application child from starti
   await runFixture({ profile: "release", fail: true });
 }, 30_000);
 
-test("a configured provider failure prevents the application child from starting", async () => {
-  await runFixture({
-    profile: "dev",
-    machineLines: ["OP_ENVIRONMENT_ID=fixture-environment", `OP_TOKEN=${fakeToken}`],
-    fail: true,
-  });
+test("a shared Infisical failure prevents source development from starting", async () => {
+  await runFixture({ profile: "dev", fail: true, failPath: "/cli" });
+}, 30_000);
+
+test("a Google secret Infisical failure prevents source development from starting", async () => {
+  await runFixture({ profile: "dev", fail: true, failPath: "/build" });
 }, 30_000);
