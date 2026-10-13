@@ -86,13 +86,15 @@ with access to exactly one account. With an API token, set the account ID explic
 The R2 parent Access Key ID alone does not authenticate `cf`. Its parent secret is not used.
 The release Google refresh token must match the pinned Desktop OAuth client.
 
-Package scripts select each folder. They disable shell expansion and personal secret
-overrides. The shared Infisical values therefore supply these commands without per-variable
-command arguments. These schemas no longer import `~/.config/varlock/naps-cli/.env.release`
+Package scripts pass the project ID explicitly and select each folder. Machine identity
+commands require the explicit ID. Infisical resolves secret references before Varlock starts.
+The scripts disable personal secret overrides. Shared Infisical values supply these commands
+without per-variable command arguments. These schemas no longer import `~/.config/varlock/naps-cli/.env.release`
 or use 1Password for builds and releases.
 
 For headless use, authenticate with a machine identity that can read this project.
-The native CLI reads its access token from `INFISICAL_TOKEN`. Keep bootstrap credentials
+The native CLI reads its access token from `INFISICAL_TOKEN`. Native Universal Auth
+variables are also removed before Bun starts. Keep bootstrap credentials
 outside the repository. Follow the [machine identity guide](https://infisical.com/docs/documentation/platform/identities/machine-identities)
 for authentication and access controls. Varlock removes declared Infisical and 1Password
 bootstrap credentials before Bun starts. This does not prevent the same user from reading

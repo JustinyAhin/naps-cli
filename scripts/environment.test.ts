@@ -32,6 +32,9 @@ const bootstrapNames = [
   "INFISICAL_TOKEN",
   "INFISICAL_CLIENT_ID",
   "INFISICAL_CLIENT_SECRET",
+  "INFISICAL_UNIVERSAL_AUTH_CLIENT_ID",
+  "INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET",
+  "INFISICAL_UNIVERSAL_AUTH_ACCESS_TOKEN",
 ];
 const fakeToken = "ops_ISOLATED_ENVIRONMENT_TEST_TOKEN";
 const fakeSigningKey = [
@@ -67,6 +70,7 @@ const runFixture = async ({
   ambient = {},
   references = {},
   injected = {},
+  secretReferences = {},
   fail = false,
 }: {
   profile: Profile;
@@ -76,6 +80,7 @@ const runFixture = async ({
   ambient?: Record<string, string>;
   references?: Record<string, string>;
   injected?: Record<string, string>;
+  secretReferences?: Record<string, string>;
   fail?: boolean;
 }) => {
   const directory = await mkdtemp(join(tmpdir(), "naps-environment-test-"));
@@ -210,8 +215,14 @@ if (process.env.FIXTURE_PROVIDER_FAIL === "1") {
 }
 const separator = args.indexOf("--");
 if (separator === -1 || separator === args.length - 1) process.exit(1);
+const values = ${JSON.stringify(injected)};
+const references = ${JSON.stringify(secretReferences)};
+const expand = !args.includes("--expand=false");
+const resolved = Object.fromEntries(Object.entries(values).map(([name, value]) => [
+  name, expand && value in references ? references[value] : value,
+]));
 const result = spawnSync(args[separator + 1], args.slice(separator + 2), {
-  env: { ...process.env, ...${JSON.stringify(injected)} },
+  env: { ...process.env, ...resolved },
   stdio: "inherit",
 });
 if (result.error) console.error(result.error.message);
@@ -260,11 +271,11 @@ process.exit(result.status ?? 1);
       const args = infisicalCalls[0]!;
       expect(args.slice(0, args.indexOf("--"))).toEqual([
         "run",
+        "--projectId=47601232-b64a-4c18-b61e-fcaebcffb68e",
         "--env",
         "prod",
         "--path",
         `/${profile}`,
-        "--expand=false",
         "--secret-overriding=false",
       ]);
     }
@@ -338,7 +349,7 @@ test("build loads Infisical client secret and strips inherited runtime, release,
   });
 }, 30_000);
 
-test("release loads Infisical inputs and preserves the full multiline signing key", async () => {
+test("release resolves Infisical references and preserves the full multiline signing key", async () => {
   const injected = {
     NAPS_GSC_CLIENT_SECRET: "FAKE_INFISICAL_CLIENT_SECRET",
     NAPS_GSC_REFRESH_TOKEN: "FAKE_INFISICAL_REFRESH_TOKEN",
@@ -349,7 +360,13 @@ test("release loads Infisical inputs and preserves the full multiline signing ke
   };
   await runFixture({
     profile: "release",
-    injected,
+    injected: {
+      ...injected,
+      NAPS_GSC_CLIENT_SECRET: "${prod.build.NAPS_GSC_CLIENT_SECRET}",
+    },
+    secretReferences: {
+      "${prod.build.NAPS_GSC_CLIENT_SECRET}": injected.NAPS_GSC_CLIENT_SECRET,
+    },
     expected: injected,
     absent: [
       ...runtimeNames.filter((name) => name !== "NAPS_GSC_REFRESH_TOKEN"),
