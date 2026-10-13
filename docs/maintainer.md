@@ -60,6 +60,10 @@ unrelated inherited environment variables.
 
 ### Infisical build and release
 
+Use the [Infisical KB runbook](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-infisical.md)
+for project access, server authentication, credential storage, and automatic loading.
+The folder and variable mappings below apply to Naps maintainer commands.
+
 Install the [Infisical CLI](https://infisical.com/docs/cli/overview) and run `bun install`.
 On the Mac, run `infisical login` with an account that can read `naps-cli-maintainer`.
 The committed `.infisical.json` contains project metadata only. It selects US Cloud.
@@ -92,13 +96,9 @@ The scripts disable personal secret overrides. Shared Infisical values supply th
 without per-variable command arguments. These schemas no longer import `~/.config/varlock/naps-cli/.env.release`
 or use 1Password for builds and releases.
 
-For headless use, authenticate with a machine identity that can read this project.
-The native CLI reads its access token from `INFISICAL_TOKEN`. Native Universal Auth
-variables are also removed before Bun starts. Keep bootstrap credentials
-outside the repository. Follow the [machine identity guide](https://infisical.com/docs/documentation/platform/identities/machine-identities)
-for authentication and access controls. Varlock removes declared Infisical and 1Password
-bootstrap credentials before Bun starts. This does not prevent the same user from reading
-its credential files.
+For headless use, the machine identity must read this maintainer project, including its release secrets.
+Varlock removes declared Infisical and 1Password bootstrap credentials before Bun starts.
+This does not prevent the same user from reading its credential files.
 
 Use **one** signing input. `NAPS_CLI_SIGNING_KEY_CONTENT` holds the complete existing
 OpenSSH private key. `NAPS_CLI_SIGNING_KEY` is an absolute path to a private key already
