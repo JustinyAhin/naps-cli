@@ -15,7 +15,7 @@
     "dev": "infisical run --projectId=1dc4d864-c7a3-41fe-804f-d60495474d5b --env dev --path /cli --secret-overriding=false -- infisical run --projectId=47601232-b64a-4c18-b61e-fcaebcffb68e --env prod --path /build --secret-overriding=false -- varlock run --path env/dev --inject vars -- bun --no-env-file index.ts",
     "build": "infisical run --projectId=47601232-b64a-4c18-b61e-fcaebcffb68e --env prod --path /build --secret-overriding=false -- varlock run --path env/build --inject vars -- bun --no-env-file scripts/build.ts",
     "build:host": "infisical run --projectId=47601232-b64a-4c18-b61e-fcaebcffb68e --env prod --path /build --secret-overriding=false -- varlock run --path env/build --inject vars -- bun --no-env-file scripts/build.ts --host",
-    "release": "infisical run --projectId=47601232-b64a-4c18-b61e-fcaebcffb68e --env prod --path /release --secret-overriding=false -- varlock run --path env/release --inject vars -- bun --no-env-file scripts/release.ts",
+    "release": "infisical run --projectId=47601232-b64a-4c18-b61e-fcaebcffb68e --env prod --path /release --secret-overriding=false -- varlock run --path env/release --inject vars -- env CLOUDFLARE_API_TOKEN= CF_API_TOKEN= bun --no-env-file scripts/release.ts",
     "test": "bun test",
     "check": "tsc --noEmit",
     "lint": "oxlint",
