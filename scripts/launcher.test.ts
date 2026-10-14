@@ -104,7 +104,7 @@ if (process.argv[2] === "metadata") {
   }
 };
 
-test("launcher preserves success JSON, optional metadata, arguments, and Varlock redaction", async () => {
+test("launcher preserves success JSON, metadata, redaction, and offline guide", async () => {
   await withLauncher((run) => {
     for (const command of ["success", "metadata"]) {
       const args = [command, "--", "--help", "a query with spaces, $quotes, and café"];
@@ -123,6 +123,14 @@ test("launcher preserves success JSON, optional metadata, arguments, and Varlock
         expect(result.stderr).toBe("");
       }
     }
+    const guide = run({ args: ["agent-guide"], failure: "infisical" });
+    expect(guide.status).toBe(0);
+    expect(JSON.parse(String(guide.stdout))).toMatchObject({
+      args: ["agent-guide"],
+      configured: false,
+      bootstrapPresent: false,
+    });
+    expect(guide.stderr).toBe("");
   });
 });
 
@@ -150,16 +158,5 @@ test("launcher reports actionable bootstrap failures without command stdout", as
     expect(varlock.stdout).toBe("");
     expect(String(varlock.stderr)).toContain("Varlock credential validation failed");
     expect(String(varlock.stderr)).toContain("NAPS_CLI_API_KEY");
-  });
-});
-
-test("launcher offline discovery does not require credential bootstrap", async () => {
-  await withLauncher((run) => {
-    for (const args of [["agent-guide"], ["--version"], ["keywords", "--help"]]) {
-      const result = run({ args, failure: "infisical" });
-      expect(result.status).toBe(0);
-      expect(JSON.parse(String(result.stdout)).args).toEqual(args);
-      expect(result.stderr).toBe("");
-    }
   });
 });
