@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,43 +38,20 @@ describe("release upload plan", () => {
 });
 
 describe("cf release account selection", () => {
-  test("bucket-scoped API tokens do not require user-profile access", async () => {
+  test("requires valid OAuth even with an explicit account", async () => {
     const accountId = "a".repeat(32);
-    const getWhoami = mock(async () => JSON.stringify({ authenticated: true, tokenValid: false }));
-    expect(
-      await resolveCfAccountId({ hasApiToken: true, accountId: ` ${accountId} `, getWhoami }),
-    ).toBe(accountId);
-    expect(getWhoami).not.toHaveBeenCalled();
-  });
-
-  test("API-token mode requires a valid explicit account without querying whoami", async () => {
-    const getWhoami = mock(async () => JSON.stringify({ accounts: [{ id: "a".repeat(32) }] }));
-    for (const accountId of [undefined, "", " "]) {
-      await expect(resolveCfAccountId({ hasApiToken: true, accountId, getWhoami })).rejects.toThrow(
-        "CLOUDFLARE_ACCOUNT_ID is required with CLOUDFLARE_API_TOKEN",
-      );
-    }
-    await expect(
-      resolveCfAccountId({ hasApiToken: true, accountId: "PRIVATE_INVALID_ID", getWhoami }),
-    ).rejects.toThrow("CLOUDFLARE_ACCOUNT_ID must be a 32-character hexadecimal account ID.");
-    expect(getWhoami).not.toHaveBeenCalled();
-  });
-
-  test("OAuth still checks authentication before selecting an account", async () => {
-    const accountId = "a".repeat(32);
-    const getWhoami = mock(async () =>
-      JSON.stringify({ authenticated: true, tokenValid: true, accounts: [{ id: accountId }] }),
-    );
-    expect(await resolveCfAccountId({ hasApiToken: false, getWhoami })).toBe(accountId);
-    expect(getWhoami).toHaveBeenCalledTimes(1);
+    const getWhoami = async () =>
+      JSON.stringify({ authenticated: true, tokenValid: true, accounts: [{ id: accountId }] });
+    expect(await resolveCfAccountId({ getWhoami })).toBe(accountId);
+    const selectedId = "b".repeat(32);
+    expect(await resolveCfAccountId({ accountId: selectedId, getWhoami })).toBe(selectedId);
     for (const payload of [{ authenticated: false }, { authenticated: true, tokenValid: false }]) {
       await expect(
         resolveCfAccountId({
-          hasApiToken: false,
           accountId,
           getWhoami: async () => JSON.stringify(payload),
         }),
-      ).rejects.toThrow("cf is not authenticated with a valid token");
+      ).rejects.toThrow("cf is not authenticated with a valid OAuth login");
     }
   });
 });
