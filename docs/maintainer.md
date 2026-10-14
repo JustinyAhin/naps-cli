@@ -58,6 +58,89 @@ old `.env`. Tests, lint, and type checks need no secret-store authentication.
 Profiles strip declared unused credentials and loader tokens. Varlock does not isolate
 unrelated inherited environment variables.
 
+### Installed Infisical launcher
+
+Use [scripts/naps-cli-launcher.sh](../scripts/naps-cli-launcher.sh) for an optional POSIX launcher.
+It applies only to naps-cli. It does not change `shared-env` or other installed tools.
+
+Keep the binary at `~/.local/lib/naps-cli/naps-cli` and the launcher at `~/.local/bin/naps-cli`.
+The normal path is Infisical `shared-creds dev:/cli` → Varlock → the installed binary.
+Use the existing Infisical login or runner token-agent wrapper from the [KB runbook](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-infisical.md).
+Do not put credentials in this launcher or its command arguments.
+
+Install Infisical and Varlock before setup. Use a trusted, private Varlock schema for runtime credentials.
+The default schema directory is `${XDG_CONFIG_HOME:-~/.config}/varlock/shared-cli`.
+For a new schema, copy `env/dev/.env.schema` there with mode `600`.
+Do not overwrite an existing private schema without review.
+The schema filters bootstrap and release credentials. It does not fetch maintainer secrets.
+
+The launcher uses these optional, non-secret settings:
+
+| Variable                        | Default                                    | Purpose                                           |
+| ------------------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `NAPS_CLI_BINARY`               | `$HOME/.local/lib/naps-cli/naps-cli`       | Real binary, not the launcher                     |
+| `NAPS_CLI_INFISICAL_BIN`        | `infisical` on `PATH`                      | Existing authenticated CLI or token-agent wrapper |
+| `NAPS_CLI_INFISICAL_PROJECT_ID` | Shared-tools project ID from `bun run dev` | Project with runtime inputs in `dev:/cli`         |
+| `NAPS_CLI_INFISICAL_DOMAIN`     | `https://app.infisical.com/api`            | Explicit trusted instance URL                     |
+| `NAPS_CLI_VARLOCK_BIN`          | `varlock` on `PATH`                        | Installed validation CLI                          |
+| `NAPS_CLI_VARLOCK_PATH`         | User's `varlock/shared-cli` directory      | Private runtime schema                            |
+
+Set overrides in the agent runner environment when necessary. Review the instance URL before sending credentials.
+The explicit domain prevents a repository configuration file from selecting another instance.
+No command changes Infisical entries, login settings, or stored credentials.
+
+#### Installation and migration
+
+For a new installation, run the signed installer with `NAPS_CLI_INSTALL_DIR="$HOME/.local/lib/naps-cli"`.
+Do not install a release binary over the launcher path.
+For an existing installation, retain the verified binary and private runtime schema.
+The existing `shared-env` helper can remain for other tools.
+
+Before replacement, run the tracked launcher from this checkout:
+
+```sh
+sh scripts/naps-cli-launcher.sh --version
+sh scripts/naps-cli-launcher.sh agent-guide
+sh scripts/naps-cli-launcher.sh locations --country US
+sh scripts/naps-cli-launcher.sh keywords test --budget NaN
+```
+
+Expect clean stdout on success. The guide needs no credential loading.
+The invalid budget must return exit `1`, empty stdout, and one JSON error on stderr.
+`locations` checks the loaded credentials without paid research.
+
+After these checks pass, replace only the naps-cli launcher:
+
+```sh
+mkdir -p "$HOME/.local/bin"
+test ! -e "$HOME/.local/bin/naps-cli" || cp -p "$HOME/.local/bin/naps-cli" "$HOME/.local/bin/naps-cli.before-infisical-fix"
+install -m 700 scripts/naps-cli-launcher.sh "$HOME/.local/bin/naps-cli.new"
+mv "$HOME/.local/bin/naps-cli.new" "$HOME/.local/bin/naps-cli"
+command -v naps-cli
+naps-cli agent-guide
+naps-cli keywords test --budget NaN
+```
+
+Keep the backup until the normal agent `PATH` passes these checks.
+To recover, restore the backup to `~/.local/bin/naps-cli`. Do not replace the real binary or credentials.
+`naps-cli update` runs the real binary directly and updates its separate binary path.
+Run interactive `search-console connect` through the real binary, not this buffered agent launcher.
+
+#### Output and failure handling
+
+Infisical uses `--silent`, `--log-level=warn`, and an explicit domain.
+Those flags alone cannot remove its plain-text child-exit message.
+The loader child records the Varlock/CLI exit status, then returns success to Infisical.
+The outer launcher returns the recorded status and CLI streams. CLI failures remain failures.
+Varlock redacts output before the launcher buffers it. Bootstrap tokens are also removed before binary startup.
+Buffers have private permissions and are removed on normal exit or handled signals.
+The launcher does not export credentials to files. `SIGKILL` can leave private output buffers in the temporary directory.
+
+Successful commands keep their stdout shape. CLI errors and optional SEO metadata remain JSON on stderr.
+If Infisical or Varlock fails before binary startup, stdout remains empty.
+Stderr then contains the loader stage and its original diagnostics, not CLI JSON.
+The launcher preserves the loader's nonzero exit status. Repair the login, token agent, access, or schema before retrying.
+
 ### Infisical build and release
 
 Use the [Infisical KB runbook](https://github.com/JustinyAhin/kb/blob/main/operations/environment-variables-with-infisical.md)
@@ -134,7 +217,7 @@ Installed releases already embed it.
 
 Old private `~/.config/varlock/naps-cli/.env.dev` and `.env.release` files are no longer
 used by repository commands. These changes do not modify an installed CLI launcher
-or deployed Worker secrets. Use the KB runbook for separate launcher configuration.
+or deployed Worker secrets. Use the [installed launcher setup](#installed-infisical-launcher) for optional runtime loading.
 
 Public users authenticate SEO calls through the naps.sh gateway with one account key. The gateway, self-serve key issuance, and per-user daily quotas live in the `napsdotsh` web app. Hosted Reddit has a default quota of zero until commercial use is approved; the admin can enable it per account later. Release the web app migration and gateway before distributing a CLI build that expects `NAPS_CLI_API_KEY`.
 
