@@ -70,7 +70,6 @@ const run = async ({
   delete env.NAPS_CLI_SIGNING_KEY;
   delete env.NAPS_GSC_REFRESH_TOKEN;
   delete env.CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID;
-  if (command !== "cf") delete env.CLOUDFLARE_API_TOKEN;
   if (!(command === "bun" && args.includes("scripts/build.ts"))) {
     delete env.NAPS_GSC_CLIENT_SECRET;
   }
@@ -128,7 +127,6 @@ const checkCfAuth = async () => {
     throw new Error("cf 0.6.0 or newer is required");
   }
   return resolveCfAccountId({
-    hasApiToken: Boolean(process.env.CLOUDFLARE_API_TOKEN?.trim()),
     accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
     getWhoami: () =>
       run({

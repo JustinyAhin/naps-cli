@@ -82,12 +82,12 @@ Set these entries in the Infisical project:
 | `/release` | `NAPS_GSC_REFRESH_TOKEN`             | Existing refresh token for the pinned Desktop client |
 | `/release` | `NAPS_CLI_SIGNING_KEY_CONTENT`       | Complete existing OpenSSH private key                |
 | `/release` | `CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID` | Access Key ID from the publishing R2 token           |
-| `/release` | `CLOUDFLARE_API_TOKEN`               | API token from the same publishing R2 token          |
 | `/release` | `CLOUDFLARE_ACCOUNT_ID`              | Account that owns the release bucket                 |
 
-The Cloudflare API token and account ID can be omitted for a working `cf` OAuth login
-with access to exactly one account. With an API token, set the account ID explicitly.
-The R2 parent Access Key ID alone does not authenticate `cf`. Its parent secret is not used.
+Releases require a saved `cf` OAuth login for the user running the command.
+The account ID can be omitted only when `cf auth whoami` returns exactly one account.
+The R2 parent Access Key ID bounds delegated S3 permissions; it does not authenticate
+the REST caller. Neither its API-token value nor its S3 secret is used.
 The release Google refresh token must match the pinned Desktop OAuth client.
 
 Package scripts pass the project ID explicitly and select each folder. Machine identity
@@ -95,6 +95,21 @@ commands require the explicit ID. Infisical resolves secret references before Va
 The scripts disable personal secret overrides. Shared Infisical values supply these commands
 without per-variable command arguments. Repository schemas do not import private 1Password
 profiles or use its plugin.
+
+The release command keeps Infisical → Varlock → Bun. After Varlock, it sets
+`CLOUDFLARE_API_TOKEN` and legacy `CF_API_TOKEN` to empty strings for the final consumer.
+This selects saved OAuth even if a token is inherited or still loaded from Infisical.
+Empty values also prevent `cf` dotenv loading from restoring a token; unsetting is not enough.
+Use `bun run release`, not a direct `bun scripts/release.ts` invocation.
+No stored credentials or persistent login settings are changed by this selection.
+
+**Manual Infisical cleanup:** remove `CLOUDFLARE_API_TOKEN` from maintainer `prod:/release`.
+Remove `CF_API_TOKEN` from that folder too, if present. These entries are no longer release
+inputs. Keep `CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID` and the underlying bucket-scoped R2 parent
+token active; deleting a stored value is not permission to revoke that parent.
+Keep `CLOUDFLARE_ACCOUNT_ID` for correct account selection, plus the Google and signing entries.
+Do not remove unrelated service credentials. No other Cloudflare variable is required by
+this workflow.
 
 For headless use, the machine identity must read this maintainer project, including its release secrets.
 Varlock removes declared Infisical and legacy 1Password bootstrap credentials before Bun starts.
@@ -333,29 +348,41 @@ reducing release bytes substantially while retaining raw fallback for historical
 `--dry-run` performs the checks/build/package steps and prints every planned object and exact byte
 count. It skips Git/`cf` preflight, temporary credentials, and all uploads.
 
-**Auth**: install `cf >=0.6.0` (tested with `1.0.0-beta.14`), then authenticate:
+**Auth**: install `cf >=0.6.0` (tested with `1.0.0-beta.14`). On the release machine,
+authenticate as the same user that runs the release. Run the preflight from the repository
+directory so `cf` selects the same saved profile:
 
 ```bash
-cf auth login
-cf auth whoami --quiet
+# One-time interactive login, only when needed:
+env CLOUDFLARE_API_TOKEN= CF_API_TOKEN= cf auth login
+
+# Non-writing preflight; do not print or save OAuth credentials:
+env CLOUDFLARE_API_TOKEN= CF_API_TOKEN= cf auth whoami --quiet
 ```
 
-With OAuth, the release script reads the JSON `cf auth whoami` response.
+The release script always checks the JSON `cf auth whoami` response for valid OAuth.
 It uses `CLOUDFLARE_ACCOUNT_ID` when set. Otherwise, exactly one returned account is required.
-With `CLOUDFLARE_API_TOKEN`, set a valid 32-character hexadecimal account ID.
-This mode skips `cf auth whoami` because bucket-scoped R2 tokens can lack user-account access.
-Temporary credential creation checks the token permissions before upload.
-No persistent `cf` configuration is changed. The selected account ID also sets the R2 upload endpoint.
-Current `cf` has no `context` command.
+Use a valid 32-character hexadecimal account ID for the bucket owner. The selected account
+also sets the R2 upload endpoint. The OAuth caller must be authorized to create temporary
+credentials in that account. No API-token authentication fallback is supported.
+The command does not change profile bindings or account settings. Normal `cf` OAuth refresh
+can renew saved credentials. Current `cf` has no `context` command.
 
 Create a long-lived **Object Read & Write** R2 API token scoped to `naps-cli-releases` under
 **R2 → Overview → Manage API Tokens**.
-Store its API token and matching Access Key ID in Infisical `prod:/release`.
-Set `CLOUDFLARE_ACCOUNT_ID` for the bucket owner. This permits headless publishing
-without a saved OAuth login. Load these values only for release commands.
-The parent secret is not needed by the release process. The script asks Cloudflare for
-path-scoped temporary S3 credentials and keeps those credentials in memory without
-logging them.
+Store only its Access Key ID as `CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID` in `prod:/release`.
+R2 [Object Read & Write permissions](https://developers.cloudflare.com/r2/api/tokens/#permissions)
+are S3-only; an active parent is not evidence of REST authority. During v0.8.0 verification,
+the active configured token matched the parent ID, but its REST policy read returned
+HTTP 403/error 9109 and temporary-credential mint returned HTTP 403/error 10000.
+Saved OAuth read the same parent policy and minted credentials successfully. The exact
+missing REST permission group was not established; this workflow does not try to repair it.
+
+OAuth authenticates the REST request. The parent bounds the temporary S3 rights to the release
+bucket. The script further limits credentials to one hour, the version prefix, and the four
+root installer/manifest objects. The parent secret is not needed. Temporary credential values
+stay in memory and are not logged. Headless publishing still needs a valid saved OAuth login,
+in addition to Infisical access; Infisical machine authentication alone is not Cloudflare login.
 
 ### R2 object layout
 

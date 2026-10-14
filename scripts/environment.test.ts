@@ -22,7 +22,6 @@ const releaseNames = [
   "NAPS_CLI_SIGNING_KEY",
   "NAPS_CLI_SIGNING_KEY_CONTENT",
   "CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID",
-  "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
 ];
 const bootstrapNames = [
@@ -53,7 +52,6 @@ const providerValues: Record<string, string> = {
   NAPS_GSC_CLIENT_SECRET: "FAKE_PROVIDER_GSC_CLIENT_SECRET",
   NAPS_CLI_SIGNING_KEY: "/fake/release-key-not-read",
   CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID: "FAKE_PROVIDER_R2_PARENT_ID",
-  CLOUDFLARE_API_TOKEN: "FAKE_PROVIDER_CLOUDFLARE_TOKEN",
   CLOUDFLARE_ACCOUNT_ID: "FAKE_PROVIDER_CLOUDFLARE_ACCOUNT",
   EXTRA_PROVIDER_SECRET: "FAKE_UNREQUESTED_PROVIDER_SECRET",
 };
@@ -106,13 +104,13 @@ const runFixture = async ({
 
     const packageJson = JSON.parse(await readFile(join(repository, "package.json"), "utf8"));
     const script = packageJson.scripts[profile] as string;
-    expect(script).toContain("-- bun --no-env-file ");
+    expect(script).toContain("bun --no-env-file ");
     await writeFile(
       join(directory, "package.json"),
       JSON.stringify({
         type: "module",
         scripts: {
-          [profile]: `${script.split("-- bun --no-env-file ")[0]}-- bun --no-env-file inspect.ts`,
+          [profile]: `${script.split("bun --no-env-file ")[0]}bun --no-env-file inspect.ts`,
         },
       }),
     );
@@ -297,12 +295,11 @@ test("build loads Infisical client secret and strips inherited runtime, release,
   });
 }, 30_000);
 
-test("release resolves Infisical references and preserves the full multiline signing key", async () => {
+test("release preserves Infisical Google and signing inputs but disables loaded and inherited cf token aliases", async () => {
   const injected = {
     NAPS_GSC_CLIENT_SECRET: "FAKE_INFISICAL_CLIENT_SECRET",
     NAPS_GSC_REFRESH_TOKEN: "FAKE_INFISICAL_REFRESH_TOKEN",
     NAPS_CLI_SIGNING_KEY_CONTENT: fakeSigningKey,
-    CLOUDFLARE_API_TOKEN: "FAKE_INFISICAL_CLOUDFLARE_TOKEN",
     CLOUDFLARE_R2_PARENT_ACCESS_KEY_ID: "FAKE_INFISICAL_PARENT_ACCESS_ID",
     CLOUDFLARE_ACCOUNT_ID: "FAKE_INFISICAL_ACCOUNT_ID",
   };
@@ -311,11 +308,12 @@ test("release resolves Infisical references and preserves the full multiline sig
     injected: {
       ...injected,
       NAPS_GSC_CLIENT_SECRET: "${prod.build.NAPS_GSC_CLIENT_SECRET}",
+      CLOUDFLARE_API_TOKEN: "FAKE_INFISICAL_UNUSED_API_TOKEN",
     },
     secretReferences: {
       "${prod.build.NAPS_GSC_CLIENT_SECRET}": injected.NAPS_GSC_CLIENT_SECRET,
     },
-    expected: injected,
+    expected: { ...injected, CLOUDFLARE_API_TOKEN: "", CF_API_TOKEN: "" },
     absent: [
       ...runtimeNames.filter((name) => name !== "NAPS_GSC_REFRESH_TOKEN"),
       ...runtimeAliases,
@@ -325,6 +323,8 @@ test("release resolves Infisical references and preserves the full multiline sig
       ...runtimeNames.filter((name) => !name.startsWith("NAPS_GSC_")),
       ...runtimeAliases,
       ...bootstrapNames,
+      "CLOUDFLARE_API_TOKEN",
+      "CF_API_TOKEN",
     ]),
   });
 }, 30_000);
