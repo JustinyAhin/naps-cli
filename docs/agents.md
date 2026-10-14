@@ -16,6 +16,9 @@ naps-cli keywords 'invoice software for freelancers'
 
 Parse stdout as JSON only when the exit status is zero. On failure, parse stderr as JSON and use `error.code` and `error.hint`. Keep the API key and provider tokens out of prompts, command arguments, and tool output.
 
+The optional [Infisical launcher](maintainer.md#installed-infisical-launcher) keeps CLI errors and metadata separate from loader output.
+If credential loading fails, stderr contains loader diagnostics instead of CLI JSON. Repair the loader setup before retrying.
+
 Start with small result limits and focused queries. `twitter-search` accepts 1–100 results and makes at most five provider page requests. A `keywords-bulk` call accepts up to 50 keywords. The updated SEO service reuses identical trimmed seeds within a batch and preserves result order and cardinality. Reused entries have `cost: 0`; they do not represent additional provider charges. If Reddit is enabled for the account, `reddit-search` accepts 1–100 results and `reddit-subreddits` 1–25. Use `--full` for Reddit only when the longer text is needed.
 
 ## SEO spend and freshness controls
