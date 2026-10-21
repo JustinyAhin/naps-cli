@@ -29,6 +29,12 @@ naps-cli keywords 'small business bookkeeping'
 
 Hosted Reddit access is disabled for new accounts until its commercial use is approved. Twitter/X commands use your own provider key. Search Console connects directly to Google on your machine. See [Getting started](docs/getting-started.md) for each setup path.
 
+Get YouTube captions without an API key or provider charge:
+
+```sh
+naps-cli youtube-transcript 'https://youtu.be/Y8Wu4rSNJms' --provider local
+```
+
 ## Documentation
 
 - [Getting started and credentials](docs/getting-started.md)

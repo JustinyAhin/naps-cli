@@ -2,13 +2,15 @@
 
 [Home](../README.md) · [Getting started](getting-started.md) · [Agents](agents.md)
 
-YouTube commands use the SEO request path. Naps sends search terms, video IDs, and language options to DataForSEO.
+YouTube commands use the SEO request path by default. Naps sends search terms, video IDs, and language options to DataForSEO.
+`youtube-transcript --provider local` sends the video ID and caption language directly to YouTube. It sends no Naps credentials.
 
-| Feature        | Request path                                                     | Credential handling                                                                                                                                                                                                  |
-| -------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reddit and SEO | CLI → naps.sh gateway → Naps-hosted services and their providers | The CLI sends your Naps key to naps.sh over HTTPS. The gateway stores only a SHA-256 hash and a short key prefix, and tracks daily usage by account. Naps keeps its provider tokens on the server.                   |
-| Twitter/X      | CLI → selected Twitter/X provider                                | Your provider token stays in your environment and is sent directly to that provider. Naps does not proxy these requests.                                                                                             |
-| Search Console | CLI → Google                                                     | Google OAuth opens in your browser. The refresh token is stored locally in the user config, with user-only file permissions where supported. Naps does not receive the token or Search Console data through the CLI. |
+| Feature                   | Request path                                                     | Credential handling                                                                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reddit and SEO            | CLI → naps.sh gateway → Naps-hosted services and their providers | The CLI sends your Naps key to naps.sh over HTTPS. The gateway stores only a SHA-256 hash and a short key prefix, and tracks daily usage by account. Naps keeps its provider tokens on the server.                   |
+| Local YouTube transcripts | CLI → YouTube                                                    | No API key. No Naps request or SEO allowance use.                                                                                                                                                                    |
+| Twitter/X                 | CLI → selected Twitter/X provider                                | Your provider token stays in your environment and is sent directly to that provider. Naps does not proxy these requests.                                                                                             |
+| Search Console            | CLI → Google                                                     | Google OAuth opens in your browser. The refresh token is stored locally in the user config, with user-only file permissions where supported. Naps does not receive the token or Search Console data through the CLI. |
 
 Reddit and SEO queries pass through Naps to the relevant provider. The SEO service records request and research events for operations, including queried keywords or domains and provider costs. Do not send private or sensitive text as a search query unless you are comfortable with that path. Naps-hosted request and account handling are described further at [naps.sh/cli/privacy](https://naps.sh/cli/privacy).
 

@@ -1,6 +1,6 @@
 {
   "name": "napsdotsh-cli",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "license": "MIT",
   "bin": {
@@ -26,7 +26,8 @@
   "dependencies": {
     "@stricli/auto-complete": "^1.3.0",
     "@stricli/core": "^1.3.0",
-    "api-clients": "workspace:*"
+    "api-clients": "workspace:*",
+    "youtube-transcript-plus": "2.0.3"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

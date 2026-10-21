@@ -14,6 +14,7 @@ naps-cli <command> --help
 ## Credentials and output
 
 - Set `NAPS_CLI_API_KEY` in the agent's environment for SEO, YouTube, and enabled Reddit access.
+- `youtube-transcript --provider local` needs no key and uses no SEO units.
 - Keep credentials out of prompts, command arguments, source files, and output.
 - If you add a key after the agent starts, restart the agent.
 - When the exit status is zero, read stdout as JSON.
@@ -41,7 +42,7 @@ Read `error` in each bulk result, including when the command succeeds.
 
 ## SEO spend and freshness controls
 
-Keyword and YouTube commands accept these flags. They require the updated SEO service and gateway.
+Keyword and DataForSEO YouTube commands accept these flags. They require the updated SEO service and gateway.
 
 | Flag                   | Action                                                                       |
 | ---------------------- | ---------------------------------------------------------------------------- |
@@ -75,9 +76,12 @@ Request operator reconciliation. Do not retry with refresh or a new request ID.
 ```sh
 naps-cli youtube-search 'invoice software' --metadata
 naps-cli youtube-comments Y8Wu4rSNJms --budget 0.002
+naps-cli youtube-transcript Y8Wu4rSNJms --provider local --subtitles-language en
 naps-cli youtube-transcript Y8Wu4rSNJms --subtitles-language en --translate-language fr --budget 0.006 --metadata
 ```
 
 Keep each search result's `type`. Missing measurements are null, not zero.
 Use transcript text only when `available` is true.
+DataForSEO is the default transcript provider. The local provider gets new captions directly from YouTube and does not make paid retries.
+Translation, `--location`, and `--language` require DataForSEO. Local `--metadata` reports zero provider cost.
 See [YouTube commands](getting-started.md#youtube) for costs, language options, and output fields.

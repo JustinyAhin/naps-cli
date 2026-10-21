@@ -18,11 +18,13 @@ const command = function (this: CliContext) {
         "For SEO_AMBIGUOUS_PROVIDER_OUTCOME or a bulk AMBIGUOUS_PROVIDER_OUTCOME, stop. Request operator reconciliation. Do not retry with refresh or a new ID.",
         "Twitter/X uses a provider key. Search Console uses Google OAuth and connects directly to Google.",
         "Keep each YouTube search result's type. Use transcript text only when available is true.",
+        "YouTube transcripts default to DataForSEO. Use --provider local for direct YouTube captions without a key or SEO units. Local requests do not make paid retries. Translation, --location, and --language require DataForSEO.",
       ],
       examples: [
         "naps-cli keywords 'invoice software' --metadata",
         "naps-cli youtube-search 'invoice software' --metadata",
         "naps-cli youtube-comments Y8Wu4rSNJms --budget 0.002",
+        "naps-cli youtube-transcript Y8Wu4rSNJms --provider local --subtitles-language en",
         "naps-cli youtube-transcript Y8Wu4rSNJms --subtitles-language en --translate-language fr --budget 0.006 --metadata",
         "naps-cli keywords 'invoice software' --refresh --metadata",
         "naps-cli keywords-bulk 'invoice software' 'bookkeeping' --budget 0.05 --request-id research-1 --metadata",

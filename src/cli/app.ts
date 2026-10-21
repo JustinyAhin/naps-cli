@@ -302,6 +302,12 @@ const youtubeTranscript = buildCommand({
   parameters: {
     flags: {
       ...youtubeFlags,
+      provider: {
+        kind: "enum",
+        values: ["dataforseo", "local"],
+        default: "dataforseo",
+        brief: "Caption provider: dataforseo (paid) | local (free, no API key)",
+      },
       subtitlesLanguage: {
         ...optionalStringFlag({ brief: "Source caption language code, such as en or pt-BR" }),
         parse: youtubeLanguageCodeParser,

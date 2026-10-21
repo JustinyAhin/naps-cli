@@ -47,6 +47,10 @@ src/commands/            → command implementations, lazy-loaded by the route t
 
 `src/cli/app.ts` owns command routes and typed parameters. Command files call the relevant SDK function from `api-clients/*/sdk.gen` or a direct provider HTTP endpoint, shape the response, and write through `CliContext`. Command failures return `CliError`; the runner normalizes every non-zero Stricli exit code to shell exit code 1.
 
+`src/youtube/local-transcript.ts` uses the pinned Transcript Plus package for `youtube-transcript --provider local`.
+It decodes caption entities and keeps the DataForSEO output fields. Requests have a 20-second timeout and no automatic retries.
+The provider requires no API key. It does not use the gateway or switch to paid retrieval.
+
 ## Environment Variables
 
 This CLI is meant to be distributed to end users. Do **not** read keys from local `.env` files or hard-coded paths.

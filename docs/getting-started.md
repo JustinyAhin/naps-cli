@@ -7,6 +7,7 @@
 | Commands                              | Credential                                          | Where to get it                                                |
 | ------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
 | `keywords*`, `youtube-*`, `locations` | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.  |
+| `youtube-transcript --provider local` | None                                                | Connects directly to YouTube.                                  |
 | `reddit-*`                            | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account. |
 | `twitter-search` (default provider)   | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                    |
 | `twitter-search --provider official`  | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                      |
@@ -29,13 +30,14 @@ Naps-hosted requests have separate daily allowances, shown at [naps.sh/cli](http
 
 ## YouTube
 
-Use `NAPS_CLI_API_KEY`. Each call uses one SEO unit.
+DataForSEO is the default provider. It requires `NAPS_CLI_API_KEY`. Each call uses one SEO unit.
 
-| Command              | Output                                                | Estimated Live cost |
-| -------------------- | ----------------------------------------------------- | ------------------- |
-| `youtube-search`     | Videos, channels, and playlists from 20 result blocks | $0.002              |
-| `youtube-comments`   | Full text of up to 20 top comments                    | $0.002              |
-| `youtube-transcript` | Available captions as full text and timed segments    | $0.006              |
+| Command                               | Output                                                | Estimated Live cost |
+| ------------------------------------- | ----------------------------------------------------- | ------------------- |
+| `youtube-search`                      | Videos, channels, and playlists from 20 result blocks | $0.002              |
+| `youtube-comments`                    | Full text of up to 20 top comments                    | $0.002              |
+| `youtube-transcript`                  | Available captions as full text and timed segments    | $0.006              |
+| `youtube-transcript --provider local` | The same output from YouTube                          | $0                  |
 
 A result block is a group of search items. Channel data includes IDs, names, URLs, descriptions, video counts, and verification status.
 Full channel statistics are not available. Comments are a sample of the discussion.
@@ -44,6 +46,7 @@ Full channel statistics are not available. Comments are a sample of the discussi
 naps-cli youtube-search 'invoicing software'
 naps-cli youtube-comments 'https://youtu.be/Y8Wu4rSNJms'
 naps-cli youtube-transcript Y8Wu4rSNJms
+naps-cli youtube-transcript Y8Wu4rSNJms --provider local --subtitles-language en
 naps-cli youtube-transcript Y8Wu4rSNJms --subtitles-language en --translate-language fr
 ```
 
@@ -51,10 +54,15 @@ Video commands accept a video ID or a YouTube watch, short-link, Shorts, live, o
 Use full names with `--location` and `--language`. Defaults are `United States` and `English`.
 Use language codes with `--subtitles-language` and `--translate-language`.
 
+The local provider uses Transcript Plus inside the CLI. It needs no API key or extra program and uses no SEO units.
+It gets new captions on each call. `--budget 0` is valid; `--metadata` reports zero provider cost.
+YouTube can block local requests. The CLI does not switch providers on failure.
+Local requests support `--subtitles-language`. Translation, `--location`, and `--language` require `--provider dataforseo`.
+
 Transcripts contain existing captions. Use the text only when `available` is true.
 `unsupportedLanguage: true` means the caption language is not supported.
 
-The service keeps successful results for 15 minutes. Use `--refresh` to get new results.
+The DataForSEO service keeps successful results for 15 minutes. Use `--refresh` to get new results.
 Actual charges can be higher than the estimate.
 See [cost controls](agents.md#seo-spend-and-freshness-controls) for `--budget`, `--metadata`, and error actions.
 
