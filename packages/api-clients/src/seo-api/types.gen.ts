@@ -88,6 +88,18 @@ export type GetKeywordsSuggestionsData = {
          * Absolute source URL. Required when X-Naps-Client-Type is app.
          */
         'X-Naps-Source-Url'?: string;
+        /**
+         * Bypass successful cache; same idempotency key still resumes its saved run.
+         */
+        'X-Naps-Refresh'?: 'true' | 'false';
+        /**
+         * Opt-in run budget, checked against conservative per-task estimates and actual incurred USD.
+         */
+        'X-Naps-Max-Cost-USD'?: number;
+        /**
+         * Caller-scoped durable run key. Increase budget to resume; use a new key for a fresh run.
+         */
+        'Idempotency-Key'?: string;
     };
     path?: never;
     query: {
@@ -114,6 +126,18 @@ export type GetKeywordsSuggestionsErrors = {
     } | {
         error: 'INVALID_LOCATION_OR_LANGUAGE';
         message: string;
+    };
+    /**
+     * Budget refuses the next estimated paid task
+     */
+    402: {
+        error: string;
+    };
+    /**
+     * Idempotency conflict or ambiguous provider outcome requiring reconciliation
+     */
+    409: {
+        error: string;
     };
     /**
      * Invalid client metadata headers
@@ -180,6 +204,18 @@ export type GetKeywordsWebsiteData = {
          * Absolute source URL. Required when X-Naps-Client-Type is app.
          */
         'X-Naps-Source-Url'?: string;
+        /**
+         * Bypass successful cache; same idempotency key still resumes its saved run.
+         */
+        'X-Naps-Refresh'?: 'true' | 'false';
+        /**
+         * Opt-in run budget, checked against conservative per-task estimates and actual incurred USD.
+         */
+        'X-Naps-Max-Cost-USD'?: number;
+        /**
+         * Caller-scoped durable run key. Increase budget to resume; use a new key for a fresh run.
+         */
+        'Idempotency-Key'?: string;
     };
     path?: never;
     query: {
@@ -206,6 +242,18 @@ export type GetKeywordsWebsiteErrors = {
     } | {
         error: 'INVALID_LOCATION_OR_LANGUAGE';
         message: string;
+    };
+    /**
+     * Budget refuses the next estimated paid task
+     */
+    402: {
+        error: string;
+    };
+    /**
+     * Idempotency conflict or ambiguous provider outcome requiring reconciliation
+     */
+    409: {
+        error: string;
     };
     /**
      * Invalid client metadata headers
@@ -272,6 +320,18 @@ export type GetKeywordsSerpData = {
          * Absolute source URL. Required when X-Naps-Client-Type is app.
          */
         'X-Naps-Source-Url'?: string;
+        /**
+         * Bypass successful cache; same idempotency key still resumes its saved run.
+         */
+        'X-Naps-Refresh'?: 'true' | 'false';
+        /**
+         * Opt-in run budget, checked against conservative per-task estimates and actual incurred USD.
+         */
+        'X-Naps-Max-Cost-USD'?: number;
+        /**
+         * Caller-scoped durable run key. Increase budget to resume; use a new key for a fresh run.
+         */
+        'Idempotency-Key'?: string;
     };
     path?: never;
     query: {
@@ -298,6 +358,18 @@ export type GetKeywordsSerpErrors = {
     } | {
         error: 'INVALID_LOCATION_OR_LANGUAGE';
         message: string;
+    };
+    /**
+     * Budget refuses the next estimated paid task
+     */
+    402: {
+        error: string;
+    };
+    /**
+     * Idempotency conflict or ambiguous provider outcome requiring reconciliation
+     */
+    409: {
+        error: string;
     };
     /**
      * Invalid client metadata headers
@@ -362,6 +434,18 @@ export type PostKeywordsBulkData = {
          * Absolute source URL. Required when X-Naps-Client-Type is app.
          */
         'X-Naps-Source-Url'?: string;
+        /**
+         * Bypass successful cache; same idempotency key still resumes its saved run.
+         */
+        'X-Naps-Refresh'?: 'true' | 'false';
+        /**
+         * Opt-in run budget, checked against conservative per-task estimates and actual incurred USD.
+         */
+        'X-Naps-Max-Cost-USD'?: number;
+        /**
+         * Caller-scoped durable run key. Increase budget to resume; use a new key for a fresh run.
+         */
+        'Idempotency-Key'?: string;
     };
     path?: never;
     query?: never;
@@ -384,6 +468,12 @@ export type PostKeywordsBulkErrors = {
     } | {
         error: 'INVALID_LOCATION_OR_LANGUAGE';
         message: string;
+    };
+    /**
+     * Idempotency conflict or ambiguous provider outcome requiring reconciliation
+     */
+    409: {
+        error: string;
     };
     /**
      * Invalid client metadata headers
@@ -429,3 +519,353 @@ export type PostKeywordsBulkResponses = {
 };
 
 export type PostKeywordsBulkResponse = PostKeywordsBulkResponses[keyof PostKeywordsBulkResponses];
+
+export type GetYoutubeSearchData = {
+    body?: never;
+    headers: {
+        /**
+         * Caller type. Use app for web app calls, cli for CLI calls, direct for manual calls.
+         */
+        'X-Naps-Client-Type': 'app' | 'cli' | 'direct' | 'other';
+        /**
+         * Stable caller name, for example napsdotsh-app or naps-cli.
+         */
+        'X-Naps-Client-Name': string;
+        /**
+         * Caller version or deployment identifier.
+         */
+        'X-Naps-Client-Version': string;
+        /**
+         * Absolute source URL. Required when X-Naps-Client-Type is app.
+         */
+        'X-Naps-Source-Url'?: string;
+        /**
+         * Bypass successful cache; same idempotency key still resumes its saved run.
+         */
+        'X-Naps-Refresh'?: 'true' | 'false';
+        /**
+         * Opt-in run budget, checked against conservative per-task estimates and actual incurred USD.
+         */
+        'X-Naps-Max-Cost-USD'?: number;
+        /**
+         * Caller-scoped durable run key. Increase budget to resume; use a new key for a fresh run.
+         */
+        'Idempotency-Key'?: string;
+    };
+    path?: never;
+    query: {
+        keyword: string;
+        location_name?: string;
+        language_name?: string;
+    };
+    url: '/youtube/search';
+};
+
+export type GetYoutubeSearchErrors = {
+    /**
+     * Invalid input, locale, or missing client metadata
+     */
+    400: {
+        error: 'INVALID_INPUT';
+        issues: Array<{
+            message: string;
+            path: string;
+        }>;
+    } | {
+        error: 'MISSING_CLIENT_METADATA';
+        missing: Array<string>;
+    } | {
+        error: 'INVALID_LOCATION_OR_LANGUAGE';
+        message: string;
+    };
+    /**
+     * Budget refuses the next estimated paid task
+     */
+    402: {
+        error: string;
+    };
+    /**
+     * Idempotency conflict or ambiguous provider outcome requiring reconciliation
+     */
+    409: {
+        error: string;
+    };
+    /**
+     * Invalid client metadata
+     */
+    422: {
+        error: 'INVALID_CLIENT_METADATA';
+        issues: Array<{
+            header: string;
+            message: string;
+        }>;
+    };
+    /**
+     * Upstream failure
+     */
+    502: {
+        error: string;
+    };
+};
+
+export type GetYoutubeSearchError = GetYoutubeSearchErrors[keyof GetYoutubeSearchErrors];
+
+export type GetYoutubeSearchResponses = {
+    /**
+     * YouTube search results
+     */
+    200: {
+        results: Array<{
+            type: 'youtube_video' | 'youtube_video_paid' | 'youtube_channel' | 'youtube_playlist';
+            rank: number | null;
+            title: string;
+            url: string | null;
+            description: string | null;
+            channelId: string | null;
+            channelName?: string | null;
+            channelUrl?: string | null;
+            videoId?: string;
+            playlistId?: string;
+            videoCount?: number | null;
+            verified?: boolean | null;
+            views?: number | null;
+            publishedAt?: string | null;
+            publicationDate?: string | null;
+            durationSeconds?: number | null;
+            isShorts?: boolean | null;
+        }>;
+        keyword: string;
+        cost: number | null;
+    };
+};
+
+export type GetYoutubeSearchResponse = GetYoutubeSearchResponses[keyof GetYoutubeSearchResponses];
+
+export type GetYoutubeCommentsData = {
+    body?: never;
+    headers: {
+        /**
+         * Caller type. Use app for web app calls, cli for CLI calls, direct for manual calls.
+         */
+        'X-Naps-Client-Type': 'app' | 'cli' | 'direct' | 'other';
+        /**
+         * Stable caller name, for example napsdotsh-app or naps-cli.
+         */
+        'X-Naps-Client-Name': string;
+        /**
+         * Caller version or deployment identifier.
+         */
+        'X-Naps-Client-Version': string;
+        /**
+         * Absolute source URL. Required when X-Naps-Client-Type is app.
+         */
+        'X-Naps-Source-Url'?: string;
+        /**
+         * Bypass successful cache; same idempotency key still resumes its saved run.
+         */
+        'X-Naps-Refresh'?: 'true' | 'false';
+        /**
+         * Opt-in run budget, checked against conservative per-task estimates and actual incurred USD.
+         */
+        'X-Naps-Max-Cost-USD'?: number;
+        /**
+         * Caller-scoped durable run key. Increase budget to resume; use a new key for a fresh run.
+         */
+        'Idempotency-Key'?: string;
+    };
+    path?: never;
+    query: {
+        video_id: string;
+        location_name?: string;
+        language_name?: string;
+    };
+    url: '/youtube/comments';
+};
+
+export type GetYoutubeCommentsErrors = {
+    /**
+     * Invalid input, locale, or missing client metadata
+     */
+    400: {
+        error: 'INVALID_INPUT';
+        issues: Array<{
+            message: string;
+            path: string;
+        }>;
+    } | {
+        error: 'MISSING_CLIENT_METADATA';
+        missing: Array<string>;
+    } | {
+        error: 'INVALID_LOCATION_OR_LANGUAGE';
+        message: string;
+    };
+    /**
+     * Budget refuses the next estimated paid task
+     */
+    402: {
+        error: string;
+    };
+    /**
+     * Idempotency conflict or ambiguous provider outcome requiring reconciliation
+     */
+    409: {
+        error: string;
+    };
+    /**
+     * Invalid client metadata
+     */
+    422: {
+        error: 'INVALID_CLIENT_METADATA';
+        issues: Array<{
+            header: string;
+            message: string;
+        }>;
+    };
+    /**
+     * Upstream failure
+     */
+    502: {
+        error: string;
+    };
+};
+
+export type GetYoutubeCommentsError = GetYoutubeCommentsErrors[keyof GetYoutubeCommentsErrors];
+
+export type GetYoutubeCommentsResponses = {
+    /**
+     * YouTube comments with full text
+     */
+    200: {
+        videoId: string;
+        title: string | null;
+        totalComments: number | null;
+        comments: Array<{
+            rank: number | null;
+            text: string;
+            author: string | null;
+            authorUrl: string | null;
+            publishedAt: string | null;
+            publicationDate: string | null;
+            likes: number | null;
+            replies: number | null;
+        }>;
+        cost: number | null;
+    };
+};
+
+export type GetYoutubeCommentsResponse = GetYoutubeCommentsResponses[keyof GetYoutubeCommentsResponses];
+
+export type GetYoutubeTranscriptData = {
+    body?: never;
+    headers: {
+        /**
+         * Caller type. Use app for web app calls, cli for CLI calls, direct for manual calls.
+         */
+        'X-Naps-Client-Type': 'app' | 'cli' | 'direct' | 'other';
+        /**
+         * Stable caller name, for example napsdotsh-app or naps-cli.
+         */
+        'X-Naps-Client-Name': string;
+        /**
+         * Caller version or deployment identifier.
+         */
+        'X-Naps-Client-Version': string;
+        /**
+         * Absolute source URL. Required when X-Naps-Client-Type is app.
+         */
+        'X-Naps-Source-Url'?: string;
+        /**
+         * Bypass successful cache; same idempotency key still resumes its saved run.
+         */
+        'X-Naps-Refresh'?: 'true' | 'false';
+        /**
+         * Opt-in run budget, checked against conservative per-task estimates and actual incurred USD.
+         */
+        'X-Naps-Max-Cost-USD'?: number;
+        /**
+         * Caller-scoped durable run key. Increase budget to resume; use a new key for a fresh run.
+         */
+        'Idempotency-Key'?: string;
+    };
+    path?: never;
+    query: {
+        video_id: string;
+        location_name?: string;
+        language_name?: string;
+        subtitles_language?: string;
+        translate_language?: string;
+    };
+    url: '/youtube/transcript';
+};
+
+export type GetYoutubeTranscriptErrors = {
+    /**
+     * Invalid input, locale, or missing client metadata
+     */
+    400: {
+        error: 'INVALID_INPUT';
+        issues: Array<{
+            message: string;
+            path: string;
+        }>;
+    } | {
+        error: 'MISSING_CLIENT_METADATA';
+        missing: Array<string>;
+    } | {
+        error: 'INVALID_LOCATION_OR_LANGUAGE';
+        message: string;
+    };
+    /**
+     * Budget refuses the next estimated paid task
+     */
+    402: {
+        error: string;
+    };
+    /**
+     * Idempotency conflict or ambiguous provider outcome requiring reconciliation
+     */
+    409: {
+        error: string;
+    };
+    /**
+     * Invalid client metadata
+     */
+    422: {
+        error: 'INVALID_CLIENT_METADATA';
+        issues: Array<{
+            header: string;
+            message: string;
+        }>;
+    };
+    /**
+     * Upstream failure
+     */
+    502: {
+        error: string;
+    };
+};
+
+export type GetYoutubeTranscriptError = GetYoutubeTranscriptErrors[keyof GetYoutubeTranscriptErrors];
+
+export type GetYoutubeTranscriptResponses = {
+    /**
+     * Full caption text and timed segments. Available is false when captions are absent or unsupported.
+     */
+    200: {
+        videoId: string;
+        available: boolean;
+        unsupportedLanguage: boolean | null;
+        originLanguage: string | null;
+        translateLanguage: string | null;
+        text: string;
+        segments: Array<{
+            text: string;
+            startSeconds: number;
+            endSeconds: number;
+            durationSeconds: number;
+        }>;
+        cost: number | null;
+    };
+};
+
+export type GetYoutubeTranscriptResponse = GetYoutubeTranscriptResponses[keyof GetYoutubeTranscriptResponses];

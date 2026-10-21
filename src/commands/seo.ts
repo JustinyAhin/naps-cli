@@ -5,8 +5,8 @@ import type { SeoBulkFlags, SeoResearchFlags } from "./types";
 
 const seoResearchHeaders = (flags: SeoBulkFlags) => ({
   ...seoApiClientHeaders,
-  ...(flags.refresh ? { "X-Naps-Refresh": "true" } : {}),
-  ...(flags.budget !== undefined ? { "X-Naps-Max-Cost-USD": String(flags.budget) } : {}),
+  ...(flags.refresh ? { "X-Naps-Refresh": "true" as const } : {}),
+  ...(flags.budget !== undefined ? { "X-Naps-Max-Cost-USD": flags.budget } : {}),
   ...(flags.requestId ? { "Idempotency-Key": flags.requestId } : {}),
 });
 

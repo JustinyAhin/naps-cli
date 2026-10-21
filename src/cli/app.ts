@@ -12,6 +12,7 @@ import packageJson from "../../package.json";
 import type { CliContext } from "./context";
 import { cliText } from "./errors";
 import { boundedIntegerParser, budgetParser, stringParser } from "./parsers";
+import { youtubeVideoParser, youtubeLanguageCodeParser } from "./youtube";
 
 const locationBrief =
   'Location/country name (e.g. "Germany"). Run `naps-cli locations` to list valid values.';
@@ -249,6 +250,77 @@ const locations = buildCommand({
   },
 });
 
+const youtubeFlags = {
+  ...keywordFlags,
+  location: optionalStringFlag({ brief: 'YouTube location name (default: "United States")' }),
+  language: optionalStringFlag({ brief: 'YouTube language name (default: "English")' }),
+};
+
+const youtubeSearch = buildCommand({
+  loader: () => import("../commands/youtube-search"),
+  parameters: {
+    flags: youtubeFlags,
+    positional: {
+      kind: "tuple",
+      parameters: [
+        {
+          parse: (input: string) => {
+            const keyword = input.trim();
+            if (!keyword || keyword.length > 700)
+              throw new SyntaxError("expected 1 to 700 characters");
+            return keyword;
+          },
+          brief: "Search keyword or channel name",
+          placeholder: "keyword",
+        },
+      ],
+    },
+  },
+  docs: { brief: "Search YouTube videos, channels, and playlists (20 result blocks)" },
+});
+
+const youtubeComments = buildCommand({
+  loader: () => import("../commands/youtube-comments"),
+  parameters: {
+    flags: youtubeFlags,
+    positional: {
+      kind: "tuple",
+      parameters: [
+        {
+          parse: youtubeVideoParser,
+          brief: "YouTube video URL or ID",
+          placeholder: "video",
+        },
+      ],
+    },
+  },
+  docs: { brief: "Get up to 20 top YouTube comments with full text" },
+});
+
+const youtubeTranscript = buildCommand({
+  loader: () => import("../commands/youtube-transcript"),
+  parameters: {
+    flags: {
+      ...youtubeFlags,
+      subtitlesLanguage: {
+        ...optionalStringFlag({ brief: "Source caption language code, such as en or pt-BR" }),
+        parse: youtubeLanguageCodeParser,
+      },
+      translateLanguage: {
+        ...optionalStringFlag({ brief: "Translate captions to this language code, such as fr" }),
+        parse: youtubeLanguageCodeParser,
+      },
+    },
+    positional: {
+      kind: "tuple",
+      parameters: [
+        { parse: youtubeVideoParser, brief: "YouTube video URL or ID", placeholder: "video" },
+      ],
+    },
+  },
+  docs: { brief: "Get available YouTube captions as full text and timed segments" },
+});
+
 const update = buildCommand({
   loader: () => import("../commands/update"),
   parameters: {},
@@ -361,6 +433,9 @@ const root = buildRouteMap({
     keywords,
     "keywords-bulk": keywordsBulk,
     "keywords-serp": keywordsSerp,
+    "youtube-search": youtubeSearch,
+    "youtube-comments": youtubeComments,
+    "youtube-transcript": youtubeTranscript,
     "keywords-website": keywordsWebsite,
     locations,
     update,

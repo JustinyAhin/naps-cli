@@ -2,6 +2,8 @@
 
 [Home](../README.md) · [Getting started](getting-started.md) · [Agents](agents.md)
 
+YouTube commands use the SEO request path. Naps sends search terms, video IDs, and language options to DataForSEO.
+
 | Feature        | Request path                                                     | Credential handling                                                                                                                                                                                                  |
 | -------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Reddit and SEO | CLI → naps.sh gateway → Naps-hosted services and their providers | The CLI sends your Naps key to naps.sh over HTTPS. The gateway stores only a SHA-256 hash and a short key prefix, and tracks daily usage by account. Naps keeps its provider tokens on the server.                   |

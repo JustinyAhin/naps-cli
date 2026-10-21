@@ -4,13 +4,13 @@
 
 ## Choose the credentials you need
 
-| Commands                             | Credential                                          | Where to get it                                                   |
-| ------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------------- |
-| `keywords*`, `locations`             | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.     |
-| `reddit-*`                           | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account.    |
-| `twitter-search` (default provider)  | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                       |
-| `twitter-search --provider official` | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                         |
-| `search-console *`                   | Google OAuth connection                             | Run `naps-cli search-console connect` locally.                    |
+| Commands                              | Credential                                          | Where to get it                                                |
+| ------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
+| `keywords*`, `youtube-*`, `locations` | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.  |
+| `reddit-*`                            | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account. |
+| `twitter-search` (default provider)   | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                    |
+| `twitter-search --provider official`  | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                      |
+| `search-console *`                    | Google OAuth connection                             | Run `naps-cli search-console connect` locally.                 |
 
 Set keys as environment variables in your shell or agent runner. Keep them out of command arguments, source control, and shared logs. If you replace a Naps key at [naps.sh/cli](https://naps.sh/cli), the old key stops working immediately.
 
@@ -26,6 +26,37 @@ naps-cli locations
 ```
 
 Naps-hosted requests have separate daily allowances, shown at [naps.sh/cli](https://naps.sh/cli). New accounts receive five SEO units per day. Each keyword or SERP call uses one SEO unit, `keywords-bulk` uses one per nonempty keyword, and `locations` uses none. Allowances reset at 00:00 UTC. Failed upstream requests can still use an allowance because it is reserved before the provider call.
+
+## YouTube
+
+Use `NAPS_CLI_API_KEY`. Each call uses one SEO unit.
+
+| Command              | Output                                                | Estimated Live cost |
+| -------------------- | ----------------------------------------------------- | ------------------- |
+| `youtube-search`     | Videos, channels, and playlists from 20 result blocks | $0.002              |
+| `youtube-comments`   | Full text of up to 20 top comments                    | $0.002              |
+| `youtube-transcript` | Available captions as full text and timed segments    | $0.006              |
+
+A result block is a group of search items. Channel data includes IDs, names, URLs, descriptions, video counts, and verification status.
+Full channel statistics are not available. Comments are a sample of the discussion.
+
+```sh
+naps-cli youtube-search 'invoicing software'
+naps-cli youtube-comments 'https://youtu.be/Y8Wu4rSNJms'
+naps-cli youtube-transcript Y8Wu4rSNJms
+naps-cli youtube-transcript Y8Wu4rSNJms --subtitles-language en --translate-language fr
+```
+
+Video commands accept a video ID or a YouTube watch, short-link, Shorts, live, or embed URL.
+Use full names with `--location` and `--language`. Defaults are `United States` and `English`.
+Use language codes with `--subtitles-language` and `--translate-language`.
+
+Transcripts contain existing captions. Use the text only when `available` is true.
+`unsupportedLanguage: true` means the caption language is not supported.
+
+The service keeps successful results for 15 minutes. Use `--refresh` to get new results.
+Actual charges can be higher than the estimate.
+See [cost controls](agents.md#seo-spend-and-freshness-controls) for `--budget`, `--metadata`, and error actions.
 
 ## Reddit, when enabled
 

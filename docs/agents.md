@@ -1,47 +1,83 @@
 # Using naps-cli with agents
 
-[Home](../README.md) · [Getting started](getting-started.md) · [Data and credentials](data-and-credentials.md)
+[Home](../README.md) · [Setup](getting-started.md) · [Credentials](data-and-credentials.md)
 
-Agents can run `naps-cli` as an ordinary command. Give the agent the commands it may use and inject credentials through its environment or secret manager. The agent does not need an interactive browser session to use Reddit, SEO, or Twitter/X.
-
-This file is the canonical detailed agent guide. Run `naps-cli agent-guide` for concise JSON instructions and guide URLs. That command works offline without credentials and makes no research requests.
-
-For a copyable agent setup prompt and public setup instructions, see [naps.sh/cli](https://naps.sh/cli) and its [agent guide](https://naps.sh/cli/agent.md). Keep the key out of the prompt. An agent can only read environment variables supplied to its process; restart it after adding a key if needed.
+Use `naps-cli` for research. This file is the detailed agent guide.
+Run `naps-cli agent-guide` for offline instructions.
 
 ```sh
 naps-cli --help
 naps-cli agent-guide
-naps-cli keywords 'invoice software for freelancers'
+naps-cli <command> --help
 ```
 
-Parse stdout as JSON only when the exit status is zero. On failure, parse stderr as JSON and use `error.code` and `error.hint`. Keep the API key and provider tokens out of prompts, command arguments, and tool output.
+## Credentials and output
 
-The optional [Infisical launcher](maintainer.md#installed-infisical-launcher) keeps CLI errors and metadata separate from loader output.
-If credential loading fails, stderr contains loader diagnostics instead of CLI JSON. Repair the loader setup before retrying.
+- Set `NAPS_CLI_API_KEY` in the agent's environment for SEO, YouTube, and enabled Reddit access.
+- Keep credentials out of prompts, command arguments, source files, and output.
+- If you add a key after the agent starts, restart the agent.
+- When the exit status is zero, read stdout as JSON.
+- When a command fails, read stderr JSON. Use `error.code` and `error.hint`.
+- If the [Infisical launcher](maintainer.md#installed-infisical-launcher) cannot load credentials, repair its configuration first. Its diagnostics are not CLI JSON.
 
-Start with small result limits and focused queries. `twitter-search` accepts 1–100 results and makes at most five provider page requests. A `keywords-bulk` call accepts up to 50 keywords. The updated SEO service reuses identical trimmed seeds within a batch and preserves result order and cardinality. Reused entries have `cost: 0`; they do not represent additional provider charges. If Reddit is enabled for the account, `reddit-search` accepts 1–100 results and `reddit-subreddits` 1–25. Use `--full` for Reddit only when the longer text is needed.
+Twitter/X uses a separate provider key. Search Console uses Google OAuth and connects directly to Google.
+See [Setup](getting-started.md) for these credentials.
+
+## Request limits
+
+| Command              | Limit                                                 |
+| -------------------- | ----------------------------------------------------- |
+| `keywords-bulk`      | 1–50 keywords                                         |
+| `reddit-search`      | 1–100 results                                         |
+| `reddit-subreddits`  | 1–25 results                                          |
+| `twitter-search`     | 1–100 results; up to five provider requests           |
+| `youtube-search`     | 20 result blocks; a block can contain several items   |
+| `youtube-comments`   | Up to 20 top comments, with full text                 |
+| `youtube-transcript` | Available captions, with full text and timed segments |
+
+Use small result limits. Use Reddit `--full` only when you need more text.
+Bulk results keep the input order and repeated keywords. The service charges once for each different keyword in a batch.
+Read `error` in each bulk result, including when the command succeeds.
 
 ## SEO spend and freshness controls
 
-These controls require the updated SEO service and gateway. Deploy those components before using budgets or resumable runs. An older service can ignore the control headers.
+Keyword and YouTube commands accept these flags. They require the updated SEO service and gateway.
 
-The four keyword commands accept `--refresh`, `--budget`, and `--metadata`. Only `keywords-bulk` accepts `--request-id`.
+| Flag                   | Action                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `--refresh`            | Get new results instead of a saved result                                    |
+| `--budget <USD>`       | Set a finite, nonnegative cost estimate limit. Zero prevents new paid tasks. |
+| `--metadata`           | Write cost, cache age, and job data to stderr                                |
+| `--request-id <value>` | Resume a saved bulk run. Only `keywords-bulk` accepts this flag.             |
+
+A cache is a saved result that the service can use again. A budget uses estimated costs.
+Actual charges can be higher than the estimate.
 
 ```sh
 naps-cli keywords 'invoice software' --metadata >results.json 2>metadata.json
-naps-cli keywords 'invoice software' --refresh --metadata >fresh-results.json 2>fresh-metadata.json
 naps-cli keywords-bulk 'invoice software' 'bookkeeping' --budget 0.05 --request-id research-1 --metadata
 ```
 
-- `--refresh` bypasses successful cached results. It does not change ranking, result counts, or query text.
-- `--budget <USD>` sets a nonnegative, finite run budget. Before each new paid task, the service compares its estimate with the remaining budget. Actual provider charges remain authoritative; an estimate is not a guaranteed invoice cap. Zero prevents new paid tasks but permits reusable results.
-- `--request-id <value>` identifies a resumable bulk run. To resume, use the same ID, inputs, location, and language. You can increase the budget on resume. Changed research inputs with the same ID produce `SEO_REQUEST_ID_CONFLICT`.
-- `--metadata` writes one JSON document to stderr on success. Stdout keeps its existing JSON shape. The document contains `seo.requestId`, `seo.providerCostUsd`, and `seo.metadata` from the service. Missing cost information stays `null`, not zero. On HTTP failure, metadata appears in `error.details.seo` within the existing error document.
+`--metadata` keeps stdout unchanged. It returns `seo.requestId`, `seo.providerCostUsd`, and `seo.metadata` on success.
+On failure, read these fields in `error.details.seo`.
+Costs for saved results are zero. Unknown costs are null. Do not add old costs to new charges.
 
-Inspect `seo.metadata` for estimated cost, actual cost, unknown costs, task provenance, cache age, and job status. Do not sum historical task costs to infer new charges. For bulk responses, inspect every entry's `error`, even when the command exits successfully. Budget stops and ambiguous provider outcomes retain explicit error entries instead of silently omitting results.
+To resume a bulk run, use the same request ID, inputs, location, and language.
+Increase `--budget` if necessary. Different inputs with the same ID cause `SEO_REQUEST_ID_CONFLICT`.
+`--refresh` with the same ID still resumes that run.
+To start a new run, use `--refresh` with a new request ID.
 
-To resume a budget-stopped batch, repeat its inputs and request ID with a sufficient budget. For `SEO_AMBIGUOUS_PROVIDER_OUTCOME` or an `AMBIGUOUS_PROVIDER_OUTCOME` bulk entry, stop and contact the service operator for reconciliation. Do not retry ambiguous billable work, including with `--refresh` or a new request ID. The service keeps that work held until reconciliation. `--refresh` with the same request ID still resumes that run. For an intentional fresh rerun without an ambiguous outcome, use `--refresh` and a new request ID.
+For `SEO_AMBIGUOUS_PROVIDER_OUTCOME` or a bulk `AMBIGUOUS_PROVIDER_OUTCOME`, stop.
+Request operator reconciliation. Do not retry with refresh or a new request ID.
 
-Search Console needs one local `connect` step on an interactive machine. For a headless agent, pass a refresh token and matching OAuth client credentials from a secret manager. Search Console requests go directly from the CLI to Google.
+## YouTube
 
-The generated API clients in `packages/api-clients` are build inputs, not something an agent needs to manage. Agents should call the CLI and follow its JSON output and help text.
+```sh
+naps-cli youtube-search 'invoice software' --metadata
+naps-cli youtube-comments Y8Wu4rSNJms --budget 0.002
+naps-cli youtube-transcript Y8Wu4rSNJms --subtitles-language en --translate-language fr --budget 0.006 --metadata
+```
+
+Keep each search result's `type`. Missing measurements are null, not zero.
+Use transcript text only when `available` is true.
+See [YouTube commands](getting-started.md#youtube) for costs, language options, and output fields.

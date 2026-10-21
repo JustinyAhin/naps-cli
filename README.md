@@ -1,6 +1,6 @@
 # naps-cli
 
-Research Reddit, search demand, Twitter/X, and your Google Search Console data from a terminal or agent. Commands return JSON to stdout and structured errors to stderr.
+Research Reddit, search demand, YouTube, Twitter/X, and your Google Search Console data from a terminal or agent. Commands return JSON to stdout and structured errors to stderr.
 
 ## Install
 

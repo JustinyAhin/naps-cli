@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetKeywordsSerpData, GetKeywordsSerpErrors, GetKeywordsSerpResponses, GetKeywordsSuggestionsData, GetKeywordsSuggestionsErrors, GetKeywordsSuggestionsResponses, GetKeywordsWebsiteData, GetKeywordsWebsiteErrors, GetKeywordsWebsiteResponses, GetLocationsData, GetLocationsErrors, GetLocationsResponses, PostKeywordsBulkData, PostKeywordsBulkErrors, PostKeywordsBulkResponses } from './types.gen';
+import type { GetKeywordsSerpData, GetKeywordsSerpErrors, GetKeywordsSerpResponses, GetKeywordsSuggestionsData, GetKeywordsSuggestionsErrors, GetKeywordsSuggestionsResponses, GetKeywordsWebsiteData, GetKeywordsWebsiteErrors, GetKeywordsWebsiteResponses, GetLocationsData, GetLocationsErrors, GetLocationsResponses, GetYoutubeCommentsData, GetYoutubeCommentsErrors, GetYoutubeCommentsResponses, GetYoutubeSearchData, GetYoutubeSearchErrors, GetYoutubeSearchResponses, GetYoutubeTranscriptData, GetYoutubeTranscriptErrors, GetYoutubeTranscriptResponses, PostKeywordsBulkData, PostKeywordsBulkErrors, PostKeywordsBulkResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -65,4 +65,31 @@ export const postKeywordsBulk = <ThrowOnError extends boolean = false>(options: 
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Search YouTube videos, channels, and playlists (20 result blocks)
+ */
+export const getYoutubeSearch = <ThrowOnError extends boolean = false>(options: Options<GetYoutubeSearchData, ThrowOnError>) => (options.client ?? client).get<GetYoutubeSearchResponses, GetYoutubeSearchErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/youtube/search',
+    ...options
+});
+
+/**
+ * Get up to 20 top comments on a YouTube video
+ */
+export const getYoutubeComments = <ThrowOnError extends boolean = false>(options: Options<GetYoutubeCommentsData, ThrowOnError>) => (options.client ?? client).get<GetYoutubeCommentsResponses, GetYoutubeCommentsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/youtube/comments',
+    ...options
+});
+
+/**
+ * Get available YouTube captions with timing and optional translation
+ */
+export const getYoutubeTranscript = <ThrowOnError extends boolean = false>(options: Options<GetYoutubeTranscriptData, ThrowOnError>) => (options.client ?? client).get<GetYoutubeTranscriptResponses, GetYoutubeTranscriptErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/youtube/transcript',
+    ...options
 });

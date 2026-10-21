@@ -38,6 +38,9 @@ src/commands/            → command implementations, lazy-loaded by the route t
   keywords-serp.ts
   keywords-website.ts
   locations.ts
+  youtube-search.ts
+  youtube-comments.ts
+  youtube-transcript.ts
   search-console.ts
   update.ts
 ```
