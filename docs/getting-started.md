@@ -4,14 +4,15 @@
 
 ## Choose the credentials you need
 
-| Commands                              | Credential                                          | Where to get it                                                |
-| ------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
-| `keywords*`, `youtube-*`, `locations` | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.  |
-| `youtube-transcript --provider local` | None                                                | Connects directly to YouTube.                                  |
-| `reddit-*`                            | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account. |
-| `twitter-search` (default provider)   | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                    |
-| `twitter-search --provider official`  | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                      |
-| `search-console *`                    | Google OAuth connection                             | Run `naps-cli search-console connect` locally.                 |
+| Commands                                                       | Credential                                          | Where to get it                                                |
+| -------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
+| `keywords*`, `locations`, `youtube-search`, `youtube-comments` | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.  |
+| `youtube-transcript --provider local`                          | None                                                | Connects directly to YouTube.                                  |
+| `youtube-transcript --provider dataforseo`                     | `NAPS_CLI_API_KEY`                                  | Use for paid transcript retrieval or translation.              |
+| `reddit-*`                                                     | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account. |
+| `twitter-search` (default provider)                            | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                    |
+| `twitter-search --provider official`                           | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                      |
+| `search-console *`                                             | Google OAuth connection                             | Run `naps-cli search-console connect` locally.                 |
 
 Set keys as environment variables in your shell or agent runner. Keep them out of command arguments, source control, and shared logs. If you replace a Naps key at [naps.sh/cli](https://naps.sh/cli), the old key stops working immediately.
 
@@ -30,14 +31,15 @@ Naps-hosted requests have separate daily allowances, shown at [naps.sh/cli](http
 
 ## YouTube
 
-DataForSEO is the default provider. It requires `NAPS_CLI_API_KEY`. Each call uses one SEO unit.
+For transcripts, try `--provider local` first. Select the required caption language with `--subtitles-language`.
+Local requests need no API key or extra program. They use no SEO units and have no provider charge.
 
-| Command                               | Output                                                | Estimated Live cost |
-| ------------------------------------- | ----------------------------------------------------- | ------------------- |
-| `youtube-search`                      | Videos, channels, and playlists from 20 result blocks | $0.002              |
-| `youtube-comments`                    | Full text of up to 20 top comments                    | $0.002              |
-| `youtube-transcript`                  | Available captions as full text and timed segments    | $0.006              |
-| `youtube-transcript --provider local` | The same output from YouTube                          | $0                  |
+| Command                                    | Output                                                | Estimated Live cost |
+| ------------------------------------------ | ----------------------------------------------------- | ------------------- |
+| `youtube-search`                           | Videos, channels, and playlists from 20 result blocks | $0.002              |
+| `youtube-comments`                         | Full text of up to 20 top comments                    | $0.002              |
+| `youtube-transcript --provider local`      | Available captions as full text and timed segments    | $0                  |
+| `youtube-transcript --provider dataforseo` | Available captions as full text and timed segments    | $0.006              |
 
 A result block is a group of search items. Channel data includes IDs, names, URLs, descriptions, video counts, and verification status.
 Full channel statistics are not available. Comments are a sample of the discussion.
@@ -45,22 +47,40 @@ Full channel statistics are not available. Comments are a sample of the discussi
 ```sh
 naps-cli youtube-search 'invoicing software'
 naps-cli youtube-comments 'https://youtu.be/Y8Wu4rSNJms'
-naps-cli youtube-transcript Y8Wu4rSNJms
 naps-cli youtube-transcript Y8Wu4rSNJms --provider local --subtitles-language en
-naps-cli youtube-transcript Y8Wu4rSNJms --subtitles-language en --translate-language fr
 ```
 
 Video commands accept a video ID or a YouTube watch, short-link, Shorts, live, or embed URL.
-Use full names with `--location` and `--language`. Defaults are `United States` and `English`.
-Use language codes with `--subtitles-language` and `--translate-language`.
+DataForSEO accepts full names with `--location` and `--language`. Defaults are `United States` and `English`.
+These options do not select the caption language.
+Use language codes with `--subtitles-language`. If you omit this flag, the local provider selects the first available track.
+That track can use a different language from the video or the language you need.
 
-The local provider uses Transcript Plus inside the CLI. It needs no API key or extra program and uses no SEO units.
-It gets new captions on each call. `--budget 0` is valid; `--metadata` reports zero provider cost.
-YouTube can block local requests. The CLI does not switch providers on failure.
-Local requests support `--subtitles-language`. Translation, `--location`, and `--language` require `--provider dataforseo`.
+The local provider uses Transcript Plus inside the CLI and gets new captions on each call.
+`--budget 0` is valid. Local `--metadata` reports zero provider cost.
 
 Transcripts contain existing captions. Use the text only when `available` is true.
-`unsupportedLanguage: true` means the caption language is not supported.
+Check `originLanguage` and the caption text. `unsupportedLanguage: true` means the requested language is unavailable.
+
+Use DataForSEO if YouTube blocks the local request, retrieval fails, or the result is invalid.
+For example, a result with `available: true` must contain caption text and timed segments.
+If captions or the requested language are absent, both providers can have the same limit.
+Caption errors can remain in both results.
+
+To use paid retrieval, select the provider explicitly:
+
+```sh
+naps-cli youtube-transcript Y8Wu4rSNJms --provider dataforseo --subtitles-language en --budget 0.006 --metadata
+```
+
+For translation, select an existing source language and the required output language:
+
+```sh
+naps-cli youtube-transcript Y8Wu4rSNJms --provider dataforseo --subtitles-language en --translate-language fr --budget 0.006
+```
+
+DataForSEO requires `NAPS_CLI_API_KEY`. Each call uses one SEO unit.
+The CLI uses DataForSEO when `--provider` is omitted. It does not switch providers automatically.
 
 The DataForSEO service keeps successful results for 15 minutes. Use `--refresh` to get new results.
 Actual charges can be higher than the estimate.

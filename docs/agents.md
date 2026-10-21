@@ -13,7 +13,7 @@ naps-cli <command> --help
 
 ## Credentials and output
 
-- Set `NAPS_CLI_API_KEY` in the agent's environment for SEO, YouTube, and enabled Reddit access.
+- Set `NAPS_CLI_API_KEY` in the agent's environment for SEO, DataForSEO YouTube requests, and enabled Reddit access.
 - `youtube-transcript --provider local` needs no key and uses no SEO units.
 - Keep credentials out of prompts, command arguments, source files, and output.
 - If you add a key after the agent starts, restart the agent.
@@ -77,11 +77,22 @@ Request operator reconciliation. Do not retry with refresh or a new request ID.
 naps-cli youtube-search 'invoice software' --metadata
 naps-cli youtube-comments Y8Wu4rSNJms --budget 0.002
 naps-cli youtube-transcript Y8Wu4rSNJms --provider local --subtitles-language en
-naps-cli youtube-transcript Y8Wu4rSNJms --subtitles-language en --translate-language fr --budget 0.006 --metadata
 ```
 
 Keep each search result's `type`. Missing measurements are null, not zero.
-Use transcript text only when `available` is true.
-DataForSEO is the default transcript provider. The local provider gets new captions directly from YouTube and does not make paid retries.
-Translation, `--location`, and `--language` require DataForSEO. Local `--metadata` reports zero provider cost.
+For transcripts, try `--provider local` first. Set `--subtitles-language` to the required language code.
+Without this flag, local retrieval selects the first available track. That track can use a different language from the video.
+Use text only when `available` is true. Check `originLanguage`, text, and timed segments.
+Use DataForSEO for blocked or failed local requests, invalid results, or translation.
+Both providers read existing captions. Missing captions and caption errors can affect both providers.
+
+For paid fallback, select DataForSEO and set a budget:
+
+```sh
+naps-cli youtube-transcript Y8Wu4rSNJms --provider dataforseo --subtitles-language en --budget 0.006 --metadata
+```
+
+Add `--translate-language fr` when you need French output from the selected source captions.
+The CLI uses DataForSEO when `--provider` is omitted. It does not switch providers automatically.
+Local `--metadata` reports zero provider cost.
 See [YouTube commands](getting-started.md#youtube) for costs, language options, and output fields.
