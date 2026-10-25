@@ -1,6 +1,6 @@
 # naps-cli
 
-Research Reddit, search demand, YouTube, Twitter/X, and your Google Search Console data from a terminal or agent. Commands return JSON to stdout and structured errors to stderr.
+Research Reddit, search demand, YouTube, Twitter/X, LinkedIn, companies, contacts, and Google Search Console from a terminal or agent. Commands return JSON to stdout and structured errors to stderr.
 
 ## Install
 
@@ -28,6 +28,9 @@ naps-cli keywords 'small business bookkeeping'
 ```
 
 Hosted Reddit access is disabled for new accounts until its commercial use is approved. Twitter/X commands use your own provider key. Search Console connects directly to Google on your machine. See [Getting started](docs/getting-started.md) for each setup path.
+
+LinkedIn, company, contact, and YouTube channel research use your own Treg token.
+See [Treg research setup](docs/getting-started.md#treg-research).
 
 For YouTube transcripts, try the local provider first. It needs no API key or provider charge:
 

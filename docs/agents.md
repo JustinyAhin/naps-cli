@@ -24,6 +24,31 @@ naps-cli <command> --help
 Twitter/X uses a separate provider key. Search Console uses Google OAuth and connects directly to Google.
 See [Setup](getting-started.md) for these credentials.
 
+## Treg research
+
+Use `linkedin-search` and `linkedin-post` for public posts with named authors and source links.
+Use `company-lookup`, `person-lookup`, `email-find`, and `email-verify` for prospect research.
+Use `youtube-channel` and `youtube-videos` for public creator research.
+Set `NAPS_CLI_TREG_TOKEN` or `TREG_TOKEN`. See [setup and billing](getting-started.md#treg-research).
+
+Successful output contains `provider`, `endpoint`, `sourceProvider`, `requestId`, `retrievedAt`, and `result`.
+`sourceProvider` names the serving provider when available. Unknown values remain `null`.
+LinkedIn search returns `result.posts`, pagination, fetched count, and a truncation flag.
+Post fields include `url`, `text`, `publishedAt`, author, and metrics. Missing measurements remain `null`.
+LinkedIn post retrieval returns one post or `null`.
+YouTube channel results contain identity, description, and public counts. Missing counts remain `null`.
+YouTube video results retain provider-native video rows, with a continuation token and truncation details.
+Company, person, and email results retain Treg's `output` object as `result`.
+Its fields depend on the serving provider. A `null` result is a miss, not a verified identity or email.
+
+Each command makes one Treg request, with a default $0.05 cost estimate limit.
+Use `--budget` and `--metadata` to control and inspect that request.
+The budget is a reservation guard. Actual charges can be higher for some providers.
+If you loop over commands, track the total separately. Each invocation has its own budget.
+Never retry `TREG_OUTCOME_UNKNOWN` or `TREG_PENDING` blindly. Check Treg and preserve the request ID.
+Use the same command and inputs for a `--request-id` replay.
+Search results establish evidence of a problem. They do not establish buying intent or willingness to pay.
+
 ## Request limits
 
 | Command              | Limit                                                 |

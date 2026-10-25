@@ -4,15 +4,16 @@
 
 ## Choose the credentials you need
 
-| Commands                                                       | Credential                                          | Where to get it                                                |
-| -------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
-| `keywords*`, `locations`, `youtube-search`, `youtube-comments` | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.  |
-| `youtube-transcript --provider local`                          | None                                                | Connects directly to YouTube.                                  |
-| `youtube-transcript --provider dataforseo`                     | `NAPS_CLI_API_KEY`                                  | Use for paid transcript retrieval or translation.              |
-| `reddit-*`                                                     | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account. |
-| `twitter-search` (default provider)                            | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                    |
-| `twitter-search --provider official`                           | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                      |
-| `search-console *`                                             | Google OAuth connection                             | Run `naps-cli search-console connect` locally.                 |
+| Commands                                                                                        | Credential                                          | Where to get it                                                |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------- |
+| `keywords*`, `locations`, `youtube-search`, `youtube-comments`                                  | `NAPS_CLI_API_KEY`                                  | [naps.sh/cli](https://naps.sh/cli). Sign in and create a key.  |
+| `youtube-transcript --provider local`                                                           | None                                                | Connects directly to YouTube.                                  |
+| `youtube-transcript --provider dataforseo`                                                      | `NAPS_CLI_API_KEY`                                  | Use for paid transcript retrieval or translation.              |
+| `reddit-*`                                                                                      | `NAPS_CLI_API_KEY`                                  | Hosted Reddit is available only when enabled for your account. |
+| `twitter-search` (default provider)                                                             | `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` | Your TwitterAPI.io account.                                    |
+| `twitter-search --provider official`                                                            | `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN`       | Your X developer account.                                      |
+| `search-console *`                                                                              | Google OAuth connection                             | Run `naps-cli search-console connect` locally.                 |
+| `linkedin-*`, `company-lookup`, `person-lookup`, `email-*`, `youtube-channel`, `youtube-videos` | `NAPS_CLI_TREG_TOKEN` or `TREG_TOKEN`               | Your [Treg account](https://treg.to).                          |
 
 Set keys as environment variables in your shell or agent runner. Keep them out of command arguments, source control, and shared logs. If you replace a Naps key at [naps.sh/cli](https://naps.sh/cli), the old key stops working immediately.
 
@@ -42,7 +43,8 @@ Local requests need no API key or extra program. They use no SEO units and have 
 | `youtube-transcript --provider dataforseo` | Available captions as full text and timed segments    | $0.006              |
 
 A result block is a group of search items. Channel data includes IDs, names, URLs, descriptions, video counts, and verification status.
-Full channel statistics are not available. Comments are a sample of the discussion.
+For public channel statistics and video lists, use the [Treg commands](#treg-research).
+Comments are a sample of the discussion.
 
 ```sh
 naps-cli youtube-search 'invoicing software'
@@ -85,6 +87,58 @@ The CLI uses DataForSEO when `--provider` is omitted. It does not switch provide
 The DataForSEO service keeps successful results for 15 minutes. Use `--refresh` to get new results.
 Actual charges can be higher than the estimate.
 See [cost controls](agents.md#seo-spend-and-freshness-controls) for `--budget`, `--metadata`, and error actions.
+
+## Treg research
+
+Treg supplies external data through several providers. These commands send requests directly to Treg with your token.
+They use your Treg balance or your provider connections in Treg. They use no Naps SEO units.
+
+Set `NAPS_CLI_TREG_TOKEN` or `TREG_TOKEN` in your shell or agent runner.
+For a personal token that needs team selection, also set `NAPS_CLI_TREG_ORG` or `TREG_ORG`.
+Use the team slug as its value. A team token does not need this setting.
+
+```sh
+naps-cli linkedin-search '"bid leveling" AND spreadsheet' --time 3months --sort date --metadata
+naps-cli linkedin-post 'https://www.linkedin.com/posts/example_activity-1234567890123456789-abcd'
+naps-cli company-lookup example.com
+naps-cli person-lookup 'https://www.linkedin.com/in/example'
+naps-cli email-find --name 'Alex Example' --domain example.com
+naps-cli email-find --linkedin-url 'https://www.linkedin.com/in/example'
+naps-cli email-verify alex@example.com
+naps-cli youtube-channel '@YouTube'
+naps-cli youtube-videos 'https://www.youtube.com/@YouTube' --sort popular --limit 20
+```
+
+LinkedIn search uses HarvestAPI. Post results include source URLs, author details, dates, text, and engagement.
+Company, person, and email commands use Treg's provider routing. YouTube channel commands use ScrapeCreators.
+Run `naps-cli <command> --help` for supported inputs and filters.
+
+Each command makes one Treg request. The default cost estimate limit is **$0.05 per request**.
+Use `--budget <USD>` to change it. The CLI sends this value as `X-Treg-Route-Max-Cost`.
+Treg checks the provider's cost reservation. Some providers can settle above that estimate.
+This setting is not an exact final-charge cap. Empty results and failed requests can still cost money.
+See [Treg billing](https://treg.to/integrate.md) for the provider limits.
+
+`--metadata` writes `treg.providerCostUsd`, `treg.callId`, `treg.requestId`, and provider details to stderr.
+An absent cost header produces `null`. An explicit zero produces `0`.
+Normal results go to stdout. See [the output contract](agents.md#treg-research) before writing a script.
+
+The CLI does not retry paid requests automatically.
+If a request times out, check the call in Treg before retrying.
+Reuse `--request-id <value>` with the same command, inputs, page, and options for an idempotent replay.
+An idempotent replay uses the saved response without another Treg charge.
+Use a new ID for a new lookup. Do not reuse an ID across different commands or changed inputs.
+
+LinkedIn search and YouTube video lists return one provider page.
+`--limit` trims that page locally. It does not reduce the provider's page charge.
+If `result.truncated` is true, increase `--limit` before moving to the next page to retain all rows.
+LinkedIn search accepts `--page` and `--pagination-token` when the previous result supplies a token.
+YouTube video lists accept `--continuation-token`. Each page is a separate request with a separate budget.
+
+Company and person details are provider matches. Confirm the identity before using the result.
+Email lookup does not confirm deliverability. Check the address with `email-verify` and inspect the returned verdict.
+Verification is not a guarantee of delivery or consent to contact.
+Public YouTube counts can be rounded or missing. Historical growth requires saved observations over time.
 
 ## Reddit, when enabled
 
