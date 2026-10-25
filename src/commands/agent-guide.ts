@@ -17,6 +17,8 @@ const command = function (this: CliContext) {
         "Bulk --request-id resumes a run with the same inputs, location, and language. Refresh with the same ID still resumes it.",
         "For SEO_AMBIGUOUS_PROVIDER_OUTCOME or a bulk AMBIGUOUS_PROVIDER_OUTCOME, stop. Request operator reconciliation. Do not retry with refresh or a new ID.",
         "Twitter/X uses a provider key. Search Console uses Google OAuth and connects directly to Google.",
+        "LinkedIn, company, person, email, and YouTube channel research use NAPS_CLI_TREG_TOKEN or TREG_TOKEN. Run each command with --help for inputs.",
+        "Treg commands make one request with a default $0.05 cost estimate limit. Use --metadata for actual costs. Check TREG_OUTCOME_UNKNOWN or TREG_PENDING in Treg before retrying, and preserve --request-id with the same inputs.",
         "Keep each YouTube search result's type.",
         "For YouTube transcripts, try --provider local first. It needs no key or SEO units. Set --subtitles-language to the required language code. If omitted, local retrieval selects the first available track.",
         "Use transcript text only when available is true. Check originLanguage, text, and timed segments. Use DataForSEO for blocked or failed local requests, invalid results, or translation. Missing captions and caption errors can affect both providers.",

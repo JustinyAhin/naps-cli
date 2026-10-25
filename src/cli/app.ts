@@ -13,6 +13,7 @@ import type { CliContext } from "./context";
 import { cliText } from "./errors";
 import { boundedIntegerParser, budgetParser, stringParser } from "./parsers";
 import { youtubeVideoParser, youtubeLanguageCodeParser } from "./youtube";
+import { tregResearchRoutes } from "./treg";
 
 const locationBrief =
   'Location/country name (e.g. "Germany"). Run `naps-cli locations` to list valid values.';
@@ -431,6 +432,7 @@ const agentGuide = buildCommand({
 
 const root = buildRouteMap({
   routes: {
+    ...tregResearchRoutes,
     "agent-guide": agentGuide,
     "reddit-search": redditSearch,
     "reddit-post": redditPost,
@@ -449,7 +451,7 @@ const root = buildRouteMap({
     completion,
   },
   docs: {
-    brief: "Research CLI for Reddit, Twitter/X, SEO keyword data, and Google Search Console.",
+    brief: "Research Reddit, X, LinkedIn, YouTube, companies, contacts, SEO, and Search Console.",
   },
 });
 

@@ -249,6 +249,8 @@ Public users authenticate SEO calls through the naps.sh gateway with one account
 
 - `NAPS_CLI_TWITTERAPI_TOKEN` or `TWITTERAPI_API_KEY` — TwitterAPI.io key required for `twitter-search --provider twitterapi`
 - `NAPS_CLI_X_BEARER_TOKEN` or `X_BEARER_TOKEN` — X API bearer token required for `twitter-search --provider official`
+- `NAPS_CLI_TREG_TOKEN` or `TREG_TOKEN` — your Treg token for LinkedIn, company, contact, and YouTube channel research
+- `NAPS_CLI_TREG_ORG` or `TREG_ORG` — optional Treg team slug for personal tokens
 - `NAPS_GSC_REFRESH_TOKEN` — Google Search Console refresh token for CI/headless use (optional; takes precedence over local credentials)
 - `NAPS_GSC_CLIENT_ID` — Google Desktop OAuth client ID override for development builds
 - `NAPS_GSC_CLIENT_SECRET` — Google Desktop OAuth client secret override for development and required build-time input for releases
@@ -273,6 +275,20 @@ naps-cli search-console disconnect
 Public release builds use `BUILT_IN_GOOGLE_CLIENT_ID` in `src/search-console/oauth.ts` and must receive `NAPS_GSC_CLIENT_SECRET` at build time. `scripts/build.ts` embeds that Desktop credential in the standalone binaries without committing it to Git. Desktop OAuth clients are public clients, so the embedded value must not be reused as a confidential server credential. Set both variables at runtime to override the bundled credentials during development.
 
 ## Adding a Subcommand
+
+### Treg research adapters
+
+`src/cli/treg.ts` owns the Treg command routes.
+`src/commands/treg-research.ts` shapes the research results.
+`src/treg/client.ts` sends credentials only to the fixed Treg HTTPS origin.
+It sets the request ID and budget headers, reads costs, and returns structured errors.
+It makes no automatic retries and rejects redirects.
+See [the agent contract](agents.md#treg-research) for output and billing limits.
+
+The adapters use [Treg's public endpoint schemas](https://treg.to/catalog) and their captured response examples.
+Provider-specific request fields stay in the adapters. Do not forward arbitrary tool IDs or credentials from arguments.
+
+### Command conventions
 
 1. Create `src/commands/<name>.ts` exporting a Stricli command function as default.
 2. Register its lazy loader, typed parameters, and docs in `src/cli/app.ts`.
